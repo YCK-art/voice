@@ -17,7 +17,6 @@
             color: white;
             overflow: hidden;
             user-select: none;
-            -webkit-app-region: drag;
             pointer-events: none; /* 기본적으로 클릭 이벤트 통과 */
         }
 
@@ -37,13 +36,18 @@
             margin: 3px;
             height: 62px;
             transition: none;
-            -webkit-app-region: drag; /* 툴바 전체 드래그 가능 */
             pointer-events: auto; /* 툴바 내부는 클릭 가능 */
-            cursor: grab; /* 드래그 가능함을 표시 */
+            user-select: none; /* 텍스트 선택 방지 */
+            -webkit-app-region: drag; /* Electron 기본 드래그 활성화 */
         }
 
         .toolbar:active {
             cursor: grabbing;
+        }
+
+        .toolbar.dragging {
+            cursor: grabbing;
+            transition: none;
         }
 
         .assistant-wrapper {
@@ -83,7 +87,7 @@
             align-items: center;
             justify-content: space-between;
             width: 100%;
-            -webkit-app-region: drag; /* 툴바 전체 드래그 가능 */
+            -webkit-app-region: drag; /* Electron 기본 드래그 활성화 */
         }
 
         .left-section {
@@ -92,7 +96,6 @@
             display: flex;
             align-items: center;
             gap: 15px;
-            -webkit-app-region: drag; /* 툴바 전체 드래그 가능 */
         }
 
         .mic-button {
@@ -107,6 +110,7 @@
             justify-content: center;
             transition: all 0.3s ease;
             -webkit-app-region: no-drag;
+            user-select: none;
         }
 
         .mic-button:hover {
@@ -269,7 +273,7 @@
             align-items: center;
             justify-content: flex-start;
             gap: 15px;
-            -webkit-app-region: drag; /* 드래그 활성화 */
+            -webkit-app-region: drag; /* Electron 기본 드래그 활성화 */
         }
 
         .shortcut-button {
@@ -641,6 +645,63 @@
 
     <script>
             const { ipcRenderer } = require('electron');
+
+            // 툴바 드래그 기능 - Electron 기본 드래그 사용, 세로축 제한
+            let isDragging = false;
+            let startY = 0;
+
+            // 툴바 드래그 시작 감지
+            document.addEventListener('mousedown', (e) => {
+                // 툴바 영역에서만 드래그 허용 (버튼과 입력창 제외)
+                const toolbar = e.target.closest('.toolbar');
+                const isButton = e.target.closest('button');
+                const isInput = e.target.closest('input');
+                
+                if (toolbar && !isButton && !isInput) {
+                    isDragging = true;
+                    startY = e.clientY;
+                    
+                    // 드래그 중 스타일 적용
+                    toolbar.classList.add('dragging');
+                    
+                    document.addEventListener('mousemove', handleMouseMove);
+                    document.addEventListener('mouseup', handleMouseUp);
+                }
+            });
+
+            // 마우스 이동 처리 (세로축 제한)
+            function handleMouseMove(e) {
+                if (!isDragging) return;
+                
+                const deltaY = e.clientY - startY;
+                
+                // 세로축 이동이 감지되면 드래그 중단
+                if (Math.abs(deltaY) > 5) {
+                    isDragging = false;
+                    const toolbar = document.querySelector('.toolbar');
+                    if (toolbar) toolbar.classList.remove('dragging');
+                    
+                    // 윈도우 위치 복원
+                    ipcRenderer.send('restore-window-position');
+                    
+                    document.removeEventListener('mousemove', handleMouseMove);
+                    document.removeEventListener('mouseup', handleMouseUp);
+                }
+            }
+
+            // 마우스 업 처리
+            function handleMouseUp() {
+                if (isDragging) {
+                    isDragging = false;
+                    
+                    // 드래그 중 스타일 제거
+                    const toolbar = document.querySelector('.toolbar');
+                    if (toolbar) toolbar.classList.remove('dragging');
+                    
+                    document.removeEventListener('mousemove', handleMouseMove);
+                    document.removeEventListener('mouseup', handleMouseUp);
+                }
+            }
 
             // DOM 요소들
             const micButton = document.getElementById('micButton');

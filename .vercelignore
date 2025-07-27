@@ -1,0 +1,32 @@
+# Electron 관련 파일들
+dist/
+node_modules/
+*.app
+*.exe
+*.dmg
+*.deb
+*.rpm
+*.zip
+*.tar.gz
+
+# 개발 파일들
+.git/
+.gitignore
+README.md
+config.env
+temp_audio.txt
+temp_audio.wav
+whisper-env/
+
+# Electron 빌드 파일들
+src/main.js
+src/toolbar.html
+src/main.html
+src/voice-assistant.js
+src/cursor-agent.js
+src/ai-command-analyzer.js
+src/advanced-action-executor.js
+src/whisper-recognition.js
+
+# 패키지 파일들
+package-lock.json 

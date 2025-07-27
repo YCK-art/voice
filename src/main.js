@@ -61,9 +61,9 @@ class VoiceCursorAssistant {
     const toolbarWidth = 800;
     const toolbarHeight = 240;
     
-    // 화면 중앙 위쪽에 위치하도록 계산
+    // 화면 중앙 위쪽에 위치하도록 계산 (고정 위치)
     const x = Math.round((screenWidth - toolbarWidth) / 2);
-    const y = Math.round(screenHeight * 0.1); // 화면 높이의 10% 위치
+    const y = Math.round(screenHeight * 0.05); // 화면 높이의 5% 위치로 더 위로
     
     this.toolbarWindow = new BrowserWindow({
       width: toolbarWidth,
@@ -78,6 +78,7 @@ class VoiceCursorAssistant {
       skipTaskbar: true,
       hasShadow: false,
       focusable: true, // 포커스를 받을 수 있도록 설정
+      movable: true, // 기본 드래그 활성화
       webPreferences: {
         nodeIntegration: true,
         contextIsolation: false,
@@ -280,13 +281,29 @@ class VoiceCursorAssistant {
       }
     });
 
-    // 윈도우 포커스 요청
+        // 윈도우 포커스 요청
     ipcMain.on('focus-window', () => {
       if (this.toolbarWindow && !this.toolbarWindow.isDestroyed()) {
         this.toolbarWindow.focus();
       }
     });
-  }
+
+    // 윈도우 위치 복원 (세로축 제한 시)
+    ipcMain.on('restore-window-position', () => {
+      if (this.toolbarWindow && !this.toolbarWindow.isDestroyed()) {
+        const [x, y] = this.toolbarWindow.getPosition();
+        const { screen } = require('electron');
+        const primaryDisplay = screen.getPrimaryDisplay();
+        const { height: screenHeight } = primaryDisplay.workAreaSize;
+        const fixedY = Math.round(screenHeight * 0.05);
+        
+        // 세로축만 고정 위치로 복원
+        this.toolbarWindow.setPosition(x, fixedY);
+      }
+    });
+
+
+    }
 }
 
 // 애플리케이션 시작

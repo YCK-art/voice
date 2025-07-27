@@ -67,8 +67,11 @@ class LandingServer {
 
   start() {
     return new Promise((resolve, reject) => {
-      this.server = this.app.listen(this.port, () => {
-        console.log(`랜딩페이지 서버가 http://localhost:${this.port} 에서 실행 중입니다`);
+      // Vercel 환경에서는 PORT 환경변수를 사용
+      const port = process.env.PORT || this.port;
+      
+      this.server = this.app.listen(port, () => {
+        console.log(`랜딩페이지 서버가 http://localhost:${port} 에서 실행 중입니다`);
         resolve();
       });
 
