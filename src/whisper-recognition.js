@@ -118,7 +118,7 @@ class WhisperRecognition extends EventEmitter {
   }
 
   startRecording() {
-    // macOS에서 오디오 녹음 (sox 사용) - 속도 최적화 모드
+    // macOS에서 오디오 녹음 (sox 사용) - 개선된 설정
     const soxArgs = [
       '-d', // 기본 입력 장치 (마이크)
       '-r', '16000', // 샘플 레이트
@@ -126,13 +126,15 @@ class WhisperRecognition extends EventEmitter {
       '-b', '16', // 16비트
       '-t', 'wav', // WAV 형식
       this.tempAudioFile, // 출력 파일
-      'silence', '1', '0.05', '1%', // 무음 감지: 0.05초 무음 후 중지 (속도 향상)
-      'trim', '0', '5' // 최대 5초 녹음 (속도 향상)
+      'silence', '1', '0.5', '1%', '1', '1.0', '1%', // 무음 감지: 0.5초 무음 후 중지
+      'trim', '0', '10' // 최대 10초 녹음
     ];
 
+    console.log('sox 녹음 시작:', soxArgs.join(' '));
     this.recordingProcess = spawn('sox', soxArgs);
     
     this.recordingProcess.on('close', (code) => {
+      console.log('sox 녹음 완료, 종료 코드:', code);
       if (code === 0 && this.isListening) {
         this.processAudioFile();
       }
@@ -173,6 +175,31 @@ class WhisperRecognition extends EventEmitter {
     try {
       console.log('음성 파일 처리 중...');
       
+      // 파일 존재 여부 확인
+      if (!fs.existsSync(this.tempAudioFile)) {
+        console.error('음성 파일이 존재하지 않습니다:', this.tempAudioFile);
+        if (this.isListening) {
+          setTimeout(() => {
+            this.startRecording();
+          }, 100);
+        }
+        return;
+      }
+      
+      // 파일 크기 확인
+      const stats = fs.statSync(this.tempAudioFile);
+      console.log('음성 파일 크기:', stats.size, 'bytes');
+      
+      if (stats.size === 0) {
+        console.log('음성 파일이 비어있습니다. 다시 녹음 시작...');
+        if (this.isListening) {
+          setTimeout(() => {
+            this.startRecording();
+          }, 100);
+        }
+        return;
+      }
+      
       // Whisper로 음성 인식
       const transcription = await this.transcribeAudio();
       
@@ -184,6 +211,7 @@ class WhisperRecognition extends EventEmitter {
         this.stopListening();
         console.log('명령 처리 완료. 음성 인식 중지됨.');
       } else {
+        console.log('의미 없는 음성 또는 빈 결과. 다시 녹음 시작...');
         // 의미 없는 음성이거나 오류 메시지면 다시 녹음 시작
         if (this.isListening) {
           setTimeout(() => {
