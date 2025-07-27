@@ -1,0 +1,1503 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Cursor Assistant</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Geist', sans-serif;
+            background: #0d1117;
+            color: #f0f6fc;
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* 헤더 */
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.95);
+            backdrop-filter: blur(10px);
+            z-index: 1000;
+            padding: 0 24px;
+        }
+
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 64px;
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: 700;
+            font-family: 'Geist Mono', monospace;
+            color: #f0f6fc;
+            text-decoration: none;
+        }
+
+        .nav-menu {
+            display: flex;
+            gap: 32px;
+            list-style: none;
+        }
+
+        .nav-menu a {
+            color: rgba(255, 255, 255, 0.8);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: color 0.2s ease;
+        }
+
+        .nav-menu a:hover {
+            color: white;
+        }
+
+        .header-buttons {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            font-family: 'Geist', sans-serif;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: rgba(255, 255, 255, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+
+        .btn-primary {
+            background: white;
+            color: #0d1117;
+        }
+
+        .btn-primary:hover {
+            background: #f0f0f0;
+        }
+
+        .btn-download {
+            background: rgba(255, 255, 255, 0.9);
+            color: #0d1117;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-download:hover {
+            background: white;
+        }
+
+        .apple-icon {
+            width: 16px;
+            height: 16px;
+            fill: #0d1117;
+        }
+
+        /* 메인 섹션 */
+        .main-section {
+            padding-top: 200px;
+            min-height: 100vh;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            text-align: center;
+            position: relative;
+            background: url('https://cursor.com/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fbg-compress.28e9667b.webp&w=3840&q=75&dpl=dpl_2Tqne8BmWZPLCFG36Y3W1D88xAgH') center center;
+            background-size: cover;
+            background-attachment: fixed;
+        }
+
+        .main-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.3);
+            pointer-events: none;
+        }
+
+        .main-content {
+            max-width: 1200px;
+            padding: 0 24px;
+            position: relative;
+            z-index: 2;
+        }
+
+        /* 뉴스 기사 배경 */
+        .news-background {
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(15px);
+            border-radius: 12px 12px 0 0;
+            padding: 40px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            position: relative;
+            overflow: hidden;
+            min-height: 600px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-bottom: none;
+        }
+
+        .news-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 24px;
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .news-tab {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-family: 'Geist', sans-serif;
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .news-image {
+            width: 100%;
+            height: 300px;
+            background: linear-gradient(135deg, #8b5cf6 0%, #ec4899 20%, #ef4444 40%, #10b981 60%, #3b82f6 80%, #f97316 100%);
+            border-radius: 8px;
+            margin-bottom: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .news-image::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 300"><rect width="800" height="300" fill="%23f0f0f0"/><circle cx="200" cy="150" r="50" fill="%23ddd"/><circle cx="400" cy="150" r="50" fill="%23ddd"/><circle cx="600" cy="150" r="50" fill="%23ddd"/><text x="400" y="200" text-anchor="middle" fill="%23999" font-family="Arial" font-size="16">News Image Placeholder</text></svg>');
+            background-size: cover;
+        }
+
+        .news-caption {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.6);
+            margin-bottom: 20px;
+            font-style: italic;
+        }
+
+        .news-content {
+            font-size: 16px;
+            line-height: 1.6;
+            color: rgba(255, 255, 255, 0.9);
+            text-align: left;
+        }
+
+        /* 랜딩페이지 툴바 */
+        .landing-toolbar {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            z-index: 10;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .toolbar-mic {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .toolbar-mic svg {
+            width: 16px;
+            height: 16px;
+            fill: white;
+        }
+
+        .toolbar-wave {
+            display: flex;
+            gap: 2px;
+            align-items: center;
+        }
+
+        .wave-dot {
+            width: 4px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.6);
+            border-radius: 50%;
+            animation: wave 1.5s infinite ease-in-out;
+        }
+
+        .wave-dot:nth-child(1) { animation-delay: 0s; }
+        .wave-dot:nth-child(2) { animation-delay: 0.1s; }
+        .wave-dot:nth-child(3) { animation-delay: 0.2s; }
+        .wave-dot:nth-child(4) { animation-delay: 0.3s; }
+        .wave-dot:nth-child(5) { animation-delay: 0.4s; }
+        .wave-dot:nth-child(6) { animation-delay: 0.5s; }
+        .wave-dot:nth-child(7) { animation-delay: 0.6s; }
+        .wave-dot:nth-child(8) { animation-delay: 0.7s; }
+
+        @keyframes wave {
+            0%, 60%, 100% { transform: scaleY(1); }
+            30% { transform: scaleY(2); }
+        }
+
+        .toolbar-button {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 6px 10px;
+            color: white;
+            font-family: 'Geist', sans-serif;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .toolbar-button:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .toolbar-cmd {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            padding: 1px 3px;
+            font-size: 10px;
+            font-weight: bold;
+            line-height: 1;
+        }
+
+        .toolbar-control {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.05);
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .toolbar-control svg {
+            width: 14px;
+            height: 14px;
+            fill: white;
+        }
+
+        /* 분석 패널 */
+        .analysis-panel {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 32px;
+            max-width: 600px;
+            width: 90%;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .chat-message {
+            margin-bottom: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .user-message {
+            align-self: flex-end;
+            background: #58a6ff;
+            color: white;
+            padding: 12px 16px;
+            border-radius: 18px 18px 4px 18px;
+            max-width: 80%;
+            font-family: 'Geist', sans-serif;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        .assistant-message {
+            align-self: flex-start;
+            background: rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.9);
+            padding: 16px;
+            border-radius: 18px 18px 18px 4px;
+            max-width: 90%;
+            font-family: 'Geist', sans-serif;
+            font-size: 14px;
+            line-height: 1.5;
+            text-align: left;
+        }
+
+        .analysis-results {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            text-align: left;
+        }
+
+        .analysis-results li {
+            color: rgba(255, 255, 255, 0.9);
+            font-family: 'Geist', sans-serif;
+            font-size: 14px;
+            line-height: 1.5;
+            margin-bottom: 8px;
+            padding-left: 16px;
+            position: relative;
+            text-align: left;
+        }
+
+        .analysis-results li::before {
+            content: '•';
+            position: absolute;
+            left: 0;
+            color: #58a6ff;
+            font-weight: bold;
+        }
+
+        .hero-title {
+            font-size: 90px;
+            font-weight: 700;
+            line-height: 1.1;
+            margin-bottom: 32px;
+            color: white;
+            text-align: center;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .hero-subtitle {
+            font-size: 18px;
+            color: rgba(255, 255, 255, 0.9);
+            margin-bottom: 40px;
+            line-height: 1.5;
+            text-align: center;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+
+        .hero-buttons {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            margin-top: 40px;
+            margin-bottom: 60px;
+        }
+
+        .btn-large {
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: 600;
+            font-family: 'Geist', sans-serif;
+        }
+
+        .btn-outline {
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            border: 2px solid rgba(0, 0, 0, 0.8);
+        }
+
+        .btn-outline:hover {
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+        }
+
+        /* 기능 섹션 */
+        .features-section {
+            padding: 120px 24px;
+            background: #000000;
+        }
+
+        .features-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .section-title {
+            font-size: 80px;
+            font-weight: 700;
+            font-family: 'Geist', sans-serif;
+            text-align: left;
+            margin-bottom: 16px;
+            color: white;
+            position: relative;
+        }
+
+        .section-title::after {
+            content: '';
+            position: absolute;
+            bottom: -8px;
+            left: 0;
+            width: 60px;
+            height: 3px;
+            background: white;
+            border-radius: 2px;
+        }
+
+        .section-subtitle {
+            font-size: 18px;
+            font-family: 'Geist', sans-serif;
+            text-align: left;
+            margin-bottom: 80px;
+            color: rgba(255, 255, 255, 0.8);
+            max-width: 600px;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 32px;
+        }
+
+        .feature-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 32px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .feature-card:nth-child(1) {
+            background: linear-gradient(135deg, #00ff88 0%, #00cc6a 25%, #00994d 50%, #006633 75%, #003319 100%);
+        }
+
+        .feature-card:nth-child(2) {
+            background: linear-gradient(135deg, #ff6b35 0%, #f7931e 25%, #ff4757 50%, #ff3742 75%, #ff1744 100%);
+        }
+
+        .feature-card:nth-child(3) {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 20%, #f093fb 40%, #f5576c 60%, #4facfe 80%, #00f2fe 100%);
+        }
+
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: 
+                radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 70% 70%, rgba(255, 255, 255, 0.05) 0%, transparent 50%);
+            border-radius: 16px;
+            pointer-events: none;
+        }
+
+        .feature-card:hover {
+            border-color: rgba(255, 255, 255, 0.2);
+            transform: translateY(-4px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+        }
+
+        .feature-card:nth-child(1):hover {
+            border-color: #00ff88;
+            box-shadow: 0 12px 40px rgba(0, 255, 136, 0.3), 0 0 20px rgba(0, 255, 136, 0.2);
+            animation: glowGreen 2s ease-in-out infinite alternate;
+        }
+
+        .feature-card:nth-child(2):hover {
+            border-color: #ff6b35;
+            box-shadow: 0 12px 40px rgba(255, 107, 53, 0.3), 0 0 20px rgba(255, 107, 53, 0.2);
+            animation: glowOrange 2s ease-in-out infinite alternate;
+        }
+
+        .feature-card:nth-child(3):hover {
+            border-color: #667eea;
+            box-shadow: 0 12px 40px rgba(102, 126, 234, 0.3), 0 0 20px rgba(102, 126, 234, 0.2);
+            animation: glowPurple 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes glowGreen {
+            from { 
+                border-color: #00ff88;
+                box-shadow: 0 12px 40px rgba(0, 255, 136, 0.3), 0 0 20px rgba(0, 255, 136, 0.2);
+            }
+            to { 
+                border-color: #00cc6a;
+                box-shadow: 0 12px 40px rgba(0, 255, 136, 0.5), 0 0 30px rgba(0, 255, 136, 0.4);
+            }
+        }
+
+        @keyframes glowOrange {
+            from { 
+                border-color: #ff6b35;
+                box-shadow: 0 12px 40px rgba(255, 107, 53, 0.3), 0 0 20px rgba(255, 107, 53, 0.2);
+            }
+            to { 
+                border-color: #ff4757;
+                box-shadow: 0 12px 40px rgba(255, 107, 53, 0.5), 0 0 30px rgba(255, 107, 53, 0.4);
+            }
+        }
+
+        @keyframes glowPurple {
+            from { 
+                border-color: #667eea;
+                box-shadow: 0 12px 40px rgba(102, 126, 234, 0.3), 0 0 20px rgba(102, 126, 234, 0.2);
+            }
+            to { 
+                border-color: #f093fb;
+                box-shadow: 0 12px 40px rgba(102, 126, 234, 0.5), 0 0 30px rgba(102, 126, 234, 0.4);
+            }
+        }
+
+        .feature-title {
+            font-size: 28px;
+            font-weight: 700;
+            font-family: 'Geist', sans-serif;
+            margin-bottom: 16px;
+            color: white;
+            position: relative;
+            z-index: 1;
+        }
+
+        .feature-description {
+            color: white;
+            line-height: 1.6;
+            font-family: 'Geist', sans-serif;
+            font-size: 16px;
+            margin-bottom: 32px;
+            position: relative;
+            z-index: 1;
+            opacity: 0.9;
+        }
+
+        .feature-graphic {
+            margin-top: 24px;
+            height: 180px;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .graphic-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .graphic-element {
+            position: absolute;
+            transition: all 0.3s ease;
+        }
+
+        .graphic-element:hover {
+            transform: scale(1.1) rotate(5deg);
+        }
+
+        .feature-card:hover .graphic-element {
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .feature-card:hover .graphic-container {
+            animation: glow 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes glow {
+            from { filter: brightness(1); }
+            to { filter: brightness(1.2); }
+        }
+
+        /* 음성 웨이브 애니메이션 */
+        .voice-waves {
+            position: absolute;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            z-index: 2;
+        }
+
+        .wave-bar {
+            width: 2px;
+            height: 12px;
+            background: linear-gradient(to top, #00ff88, #00cc6a);
+            border-radius: 1px;
+            animation: wave 1.5s ease-in-out infinite;
+        }
+
+        .wave-bar:nth-child(1) { animation-delay: 0s; }
+        .wave-bar:nth-child(2) { animation-delay: 0.1s; }
+        .wave-bar:nth-child(3) { animation-delay: 0.2s; }
+        .wave-bar:nth-child(4) { animation-delay: 0.3s; }
+        .wave-bar:nth-child(5) { animation-delay: 0.4s; }
+        .wave-bar:nth-child(6) { animation-delay: 0.5s; }
+        .wave-bar:nth-child(7) { animation-delay: 0.6s; }
+        .wave-bar:nth-child(8) { animation-delay: 0.7s; }
+        .wave-bar:nth-child(9) { animation-delay: 0.8s; }
+        .wave-bar:nth-child(10) { animation-delay: 0.9s; }
+        .wave-bar:nth-child(11) { animation-delay: 1s; }
+        .wave-bar:nth-child(12) { animation-delay: 1.1s; }
+
+        @keyframes wave {
+            0%, 100% { height: 12px; }
+            50% { height: 30px; }
+        }
+
+        /* 눈 애니메이션 */
+        .eye-container {
+            position: absolute;
+            display: flex;
+            gap: 30px;
+            z-index: 3;
+        }
+
+        .eye {
+            width: 60px;
+            height: 60px;
+        }
+
+        .eye-outer {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #ff6b35, #ff4757);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .eye-inner {
+            width: 36px;
+            height: 36px;
+            background: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .pupil {
+            width: 18px;
+            height: 18px;
+            background: #333;
+            border-radius: 50%;
+            animation: look 4s ease-in-out infinite;
+        }
+
+        @keyframes look {
+            0%, 100% { transform: translate(0, 0); }
+            25% { transform: translate(4px, -2px); }
+            50% { transform: translate(-2px, 3px); }
+            75% { transform: translate(3px, 2px); }
+        }
+
+        /* AI 시각화 요소들 */
+        .ai-visualization {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        .scan-line {
+            position: absolute;
+            width: 100%;
+            height: 3px;
+            background: linear-gradient(90deg, transparent, #ff6b35, transparent);
+            animation: scan 3s linear infinite;
+        }
+
+        .scan-line:nth-child(1) { top: 20%; animation-delay: 0s; }
+        .scan-line:nth-child(2) { top: 50%; animation-delay: 1s; }
+        .scan-line:nth-child(3) { top: 80%; animation-delay: 2s; }
+
+        @keyframes scan {
+            0% { transform: translateX(-100%); opacity: 0; }
+            50% { opacity: 1; }
+            100% { transform: translateX(100%); opacity: 0; }
+        }
+
+        .data-points {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+        }
+
+        .data-point {
+            position: absolute;
+            width: 6px;
+            height: 6px;
+            background: #ff4757;
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        .data-point:nth-child(1) { top: 30%; left: 20%; animation-delay: 0s; }
+        .data-point:nth-child(2) { top: 60%; left: 80%; animation-delay: 0.3s; }
+        .data-point:nth-child(3) { top: 70%; left: 30%; animation-delay: 0.6s; }
+        .data-point:nth-child(4) { top: 40%; left: 70%; animation-delay: 0.9s; }
+        .data-point:nth-child(5) { top: 20%; left: 60%; animation-delay: 1.2s; }
+        .data-point:nth-child(6) { top: 80%; left: 40%; animation-delay: 1.5s; }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 0.5; }
+            50% { transform: scale(1.5); opacity: 1; }
+        }
+
+        /* 자동화 워크플로우 애니메이션 */
+        .automation-flow {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .hub {
+            position: relative;
+            z-index: 3;
+        }
+
+        .hub-core {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, #667eea, #f093fb);
+            border-radius: 50%;
+            animation: rotate 4s linear infinite;
+        }
+
+        .hub-ring {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            border: 2px solid #f093fb;
+            border-radius: 50%;
+            animation: expand 3s ease-in-out infinite;
+        }
+
+        .hub-ring:nth-child(2) {
+            width: 90px;
+            height: 90px;
+            margin: -45px 0 0 -45px;
+            animation-delay: 0s;
+        }
+
+        .hub-ring:nth-child(3) {
+            width: 120px;
+            height: 120px;
+            margin: -60px 0 0 -60px;
+            animation-delay: 1.5s;
+        }
+
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes expand {
+            0%, 100% { transform: scale(1); opacity: 0.3; }
+            50% { transform: scale(1.2); opacity: 0.8; }
+        }
+
+        .workflow-node {
+            position: absolute;
+            width: 45px;
+            height: 45px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: nodePulse 2s ease-in-out infinite;
+        }
+
+        .node-1 { top: 20%; left: 20%; animation-delay: 0s; }
+        .node-2 { top: 20%; right: 20%; animation-delay: 0.5s; }
+        .node-3 { bottom: 20%; left: 20%; animation-delay: 1s; }
+        .node-4 { bottom: 20%; right: 20%; animation-delay: 1.5s; }
+
+        .node-icon {
+            font-size: 20px;
+            animation: bounce 1s ease-in-out infinite;
+        }
+
+        .node-connection {
+            position: absolute;
+            width: 2px;
+            height: 40px;
+            background: linear-gradient(to bottom, #f093fb, transparent);
+            animation: flow 2s ease-in-out infinite;
+        }
+
+        .node-1 .node-connection { transform: rotate(45deg); }
+        .node-2 .node-connection { transform: rotate(-45deg); }
+        .node-3 .node-connection { transform: rotate(135deg); }
+        .node-4 .node-connection { transform: rotate(-135deg); }
+
+        @keyframes nodePulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-3px); }
+        }
+
+        @keyframes flow {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 1; }
+        }
+
+        .data-flow {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        .flow-particle {
+            position: absolute;
+            width: 6px;
+            height: 6px;
+            background: #4facfe;
+            border-radius: 50%;
+            animation: flowMove 3s linear infinite;
+        }
+
+        .flow-particle:nth-child(1) {
+            top: 30%;
+            left: 30%;
+            animation-delay: 0s;
+        }
+
+        .flow-particle:nth-child(2) {
+            top: 60%;
+            right: 30%;
+            animation-delay: 1s;
+        }
+
+        .flow-particle:nth-child(3) {
+            bottom: 30%;
+            left: 60%;
+            animation-delay: 2s;
+        }
+
+        @keyframes flowMove {
+            0% { transform: translate(0, 0); opacity: 0; }
+            25% { opacity: 1; }
+            75% { opacity: 1; }
+            100% { transform: translate(40px, -40px); opacity: 0; }
+        }
+
+        /* 로그인/회원가입 모달 */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: #0d1117;
+            border: 1px solid #21262d;
+            border-radius: 12px;
+            padding: 40px;
+            max-width: 400px;
+            width: 90%;
+            position: relative;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            background: none;
+            border: none;
+            color: #8b949e;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 8px;
+        }
+
+        .modal-close:hover {
+            color: #f0f6fc;
+        }
+
+        .modal-title {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 32px;
+            text-align: center;
+            color: #f0f6fc;
+        }
+
+        .form-group {
+            margin-bottom: 24px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #f0f6fc;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            background: #0d1117;
+            color: #f0f6fc;
+            font-size: 16px;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #58a6ff;
+            box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.1);
+        }
+
+        .form-group input::placeholder {
+            color: #484f58;
+        }
+
+        .modal-submit {
+            width: 100%;
+            padding: 12px;
+            background: #238636;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-bottom: 16px;
+        }
+
+        .modal-submit:hover {
+            background: #2ea043;
+        }
+
+        .modal-toggle {
+            text-align: center;
+        }
+
+        .modal-toggle a {
+            color: #58a6ff;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .modal-toggle a:hover {
+            text-decoration: underline;
+        }
+
+        /* 반응형 */
+        @media (max-width: 768px) {
+            .hero-title {
+                font-size: 40px;
+            }
+
+            .hero-subtitle {
+                font-size: 18px;
+            }
+
+            .hero-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .nav-menu {
+                display: none;
+            }
+
+            .features-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* 애니메이션 */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .fade-in-up {
+            animation: fadeInUp 0.6s ease-out;
+        }
+
+        /* 로딩 스피너 */
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 16px;
+        }
+
+        .spinner {
+            border: 3px solid #30363d;
+            border-top: 3px solid #58a6ff;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <!-- 헤더 -->
+    <header class="header">
+        <div class="header-content">
+            <a href="#" class="logo">Guidant</a>
+            <nav>
+                <ul class="nav-menu">
+                    <li><a href="#features">Features</a></li>
+                    <li><a href="#pricing">Pricing</a></li>
+                    <li><a href="#docs">Docs</a></li>
+                    <li><a href="#blog">Blog</a></li>
+                </ul>
+            </nav>
+            <div class="header-buttons">
+                <button class="btn btn-secondary" onclick="showLogin()">Log in</button>
+                <button class="btn btn-download" onclick="showLogin()">
+                    <svg class="apple-icon" viewBox="0 0 24 24">
+                        <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
+                    </svg>
+                    Download
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- 메인 섹션 -->
+    <main class="main-section">
+        <div class="main-content fade-in-up">
+            <h1 class="hero-title">AI meets your desktop.</h1>
+            <p class="hero-subtitle">
+                An AI-powered assistant that lets you operate your computer naturally—open apps, explore the web, and understand what's on your screen, all through simple voice commands.
+            </p>
+            
+            <div class="hero-buttons">
+                <button class="btn btn-primary btn-large" onclick="showLogin()">
+                    <svg class="apple-icon" viewBox="0 0 24 24" style="width: 16px; height: 16px; margin-right: 8px;">
+                        <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
+                    </svg>
+                    Download
+                </button>
+                <button class="btn btn-outline btn-large" onclick="showFeatures()">Learn More</button>
+            </div>
+            
+            <div class="news-background">
+                <!-- 랜딩페이지 툴바 -->
+                <div class="landing-toolbar">
+                    <button class="toolbar-mic">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+                            <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+                        </svg>
+                    </button>
+                    <div class="toolbar-wave">
+                        <div class="wave-dot"></div>
+                        <div class="wave-dot"></div>
+                        <div class="wave-dot"></div>
+                        <div class="wave-dot"></div>
+                        <div class="wave-dot"></div>
+                        <div class="wave-dot"></div>
+                        <div class="wave-dot"></div>
+                        <div class="wave-dot"></div>
+                    </div>
+                    <button class="toolbar-button">
+                        Speak <span class="toolbar-cmd">⌘</span>+X
+                    </button>
+                    <button class="toolbar-button">
+                        Hide <span class="toolbar-cmd">⌘</span>+H
+                    </button>
+                    <button class="toolbar-button">
+                        Ask <span class="toolbar-cmd">⌘</span>+A
+                    </button>
+                    <button class="toolbar-control">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
+                        </svg>
+                    </button>
+                    <button class="toolbar-control">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M3,6H21V8H3V6M3,11H21V13H3V11M3,16H21V18H3V16Z"/>
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="news-header">
+                    <div class="news-tab">-conflict-military-comparison-intl-hnk-ml</div>
+                    <span>CNN</span>
+                </div>
+                
+                <div class="news-image"></div>
+                <div class="news-caption">
+                    Members of the Thai army... Chaiwat Subprasom/SOPA Images/LightRocket/Getty Images
+                </div>
+                
+                <div class="news-content">
+                    <p><strong>(CNN) —</strong> The deadly conflict on the Thai-Cambodian border pits a longtime United States ally with decades of experience against a relatively young armed force with close ties to China.</p>
+                    <p>The border between the two Southeast Asian nations was drawn by France more than a century ago, but recent clashes have left dozens dead and forced more than 150,000 people to flee their homes.</p>
+                    <p>Thailand, with its modernized military and significant defense spending, faces off against Cambodia, which relies heavily on Chinese military aid and equipment. The strategic implications of this conflict extend beyond the immediate region, reflecting the broader US-China rivalry in the Asia-Pacific.</p>
+                </div>
+                
+                <!-- 분석 패널 -->
+                <div class="analysis-panel">
+                    <div class="chat-message">
+                        <div class="user-message">
+                            can you analyze the news page that I'm watching right now?
+                        </div>
+                    </div>
+                    <div class="chat-message">
+                        <div class="assistant-message">
+                            <ul class="analysis-results">
+                                <li>Thai-Cambodian conflict analysis by CNN</li>
+                                <li>Thailand, a well-equipped US ally, in conflict with Cambodia, a weaker adversary with strong ties to China</li>
+                                <li>Military capabilities and resources comparison between the two countries</li>
+                                <li>Thailand's modernized military assets and defense spending highlighted</li>
+                                <li>Cambodia's reliance on Chinese military aid and equipment</li>
+                                <li>Strategic implications of the conflict in the context of US-China rivalry</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 기능 섹션 -->
+    <section class="features-section" id="features">
+        <div class="features-container">
+            <h2 class="section-title">Features</h2>
+            <p class="section-subtitle">An AI assistant that lets you speak, understand, and streamline everything you do on your computer.</p>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <h3 class="feature-title">Control with your voice</h3>
+                    <p class="feature-description">
+                        Operate your laptop with nothing but speech—open apps, search the web, and navigate your system hands-free.
+                    </p>
+                    <div class="feature-graphic">
+                        <div class="graphic-container">
+                            <!-- 음성 웨이브 애니메이션 -->
+                            <div class="voice-waves">
+                                <div class="wave-bar"></div>
+                                <div class="wave-bar"></div>
+                                <div class="wave-bar"></div>
+                                <div class="wave-bar"></div>
+                                <div class="wave-bar"></div>
+                                <div class="wave-bar"></div>
+                                <div class="wave-bar"></div>
+                                <div class="wave-bar"></div>
+                                <div class="wave-bar"></div>
+                                <div class="wave-bar"></div>
+                                <div class="wave-bar"></div>
+                                <div class="wave-bar"></div>
+                            </div>
+                            <!-- 중앙 마이크 아이콘 -->
+                            <div class="graphic-element" style="z-index: 3; display: flex; align-items: center; justify-content: center; width: 80px; height: 80px;">
+                                <div style="width: 70px; height: 70px; background: linear-gradient(135deg, #00ff88, #00cc6a); border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 3px solid white;">
+                                    <svg width="40" height="40" viewBox="0 0 24 24" fill="white">
+                                        <path d="M12 2C13.1 2 14 2.9 14 4V8C14 9.1 13.1 10 12 10C10.9 10 10 9.1 10 8V4C10 2.9 10.9 2 12 2Z"/>
+                                        <path d="M19 10V8C19 4.13 15.87 1 12 1C8.13 1 5 4.13 5 8V10C5 13.87 8.13 17 12 17C15.87 17 19 13.87 19 10Z"/>
+                                        <path d="M12 19C13.1 19 14 19.9 14 21C14 22.1 13.1 23 12 23C10.9 23 10 22.1 10 21C10 19.9 10.9 19 12 19Z"/>
+                                        <path d="M8 10C8 12.21 9.79 14 12 14C14.21 14 16 12.21 16 10H18C18 12.76 15.76 15 13 15H11C8.24 15 6 12.76 6 10H8Z"/>
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="feature-card">
+                    <h3 class="feature-title">Your AI sees what you see</h3>
+                    <p class="feature-description">
+                        Whether it's a news page or a dashboard, Guidant understands and summarises what's on your screen—just ask.
+                    </p>
+                    <div class="feature-graphic">
+                        <div class="graphic-container">
+                            <!-- 눈 애니메이션 -->
+                            <div class="eye-container">
+                                <div class="eye">
+                                    <div class="eye-outer">
+                                        <div class="eye-inner">
+                                            <div class="pupil"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="eye">
+                                    <div class="eye-outer">
+                                        <div class="eye-inner">
+                                            <div class="pupil"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- AI 시각화 요소들 -->
+                            <div class="ai-visualization">
+                                <div class="scan-line"></div>
+                                <div class="scan-line"></div>
+                                <div class="scan-line"></div>
+                                <div class="data-points">
+                                    <div class="data-point"></div>
+                                    <div class="data-point"></div>
+                                    <div class="data-point"></div>
+                                    <div class="data-point"></div>
+                                    <div class="data-point"></div>
+                                    <div class="data-point"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="feature-card">
+                    <h3 class="feature-title">Automate your daily flow</h3>
+                    <p class="feature-description">
+                        Trigger multi-step routines with a single command. Start meetings, prep workspaces, or get into focus mode—your way.
+                    </p>
+                    <div class="feature-graphic">
+                        <div class="graphic-container">
+                            <!-- 자동화 워크플로우 애니메이션 -->
+                            <div class="automation-flow">
+                                <!-- 중앙 허브 -->
+                                <div class="hub">
+                                    <div class="hub-core"></div>
+                                    <div class="hub-ring"></div>
+                                    <div class="hub-ring"></div>
+                                </div>
+                                <!-- 워크플로우 노드들 -->
+                                <div class="workflow-node node-1">
+                                    <div class="node-icon">📅</div>
+                                    <div class="node-connection"></div>
+                                </div>
+                                <div class="workflow-node node-2">
+                                    <div class="node-icon">💼</div>
+                                    <div class="node-connection"></div>
+                                </div>
+                                <div class="workflow-node node-3">
+                                    <div class="node-icon">🎯</div>
+                                    <div class="node-connection"></div>
+                                </div>
+                                <div class="workflow-node node-4">
+                                    <div class="node-icon">⚡</div>
+                                    <div class="node-connection"></div>
+                                </div>
+                                <!-- 데이터 흐름 라인 -->
+                                <div class="data-flow">
+                                    <div class="flow-particle"></div>
+                                    <div class="flow-particle"></div>
+                                    <div class="flow-particle"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 로그인/회원가입 모달 -->
+    <div class="modal" id="loginModal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="hideLogin()">&times;</button>
+            <h2 class="modal-title" id="modalTitle">Log in</h2>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" name="email" required placeholder="Enter your email">
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" required placeholder="Enter your password">
+                </div>
+                <div class="form-group" id="nameGroup" style="display: none;">
+                    <label for="name">Name</label>
+                    <input type="text" id="name" name="name" placeholder="Enter your name">
+                </div>
+                <button type="submit" class="modal-submit">
+                    <span id="submitText">Log in</span>
+                </button>
+            </form>
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+            </div>
+            <div class="modal-toggle">
+                <a id="modalToggle" onclick="toggleAuth()">Sign up</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let isLoginMode = true;
+
+        function showLogin() {
+            document.getElementById('loginModal').classList.add('show');
+        }
+
+        function hideLogin() {
+            document.getElementById('loginModal').classList.remove('show');
+        }
+
+        function showFeatures() {
+            document.getElementById('features').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function toggleAuth() {
+            isLoginMode = !isLoginMode;
+            const title = document.getElementById('modalTitle');
+            const submitText = document.getElementById('submitText');
+            const toggleLink = document.getElementById('modalToggle');
+            const nameGroup = document.getElementById('nameGroup');
+
+            if (isLoginMode) {
+                title.textContent = 'Log in';
+                submitText.textContent = 'Log in';
+                toggleLink.textContent = 'Sign up';
+                nameGroup.style.display = 'none';
+            } else {
+                title.textContent = 'Sign up';
+                submitText.textContent = 'Sign up';
+                toggleLink.textContent = 'Log in';
+                nameGroup.style.display = 'block';
+            }
+        }
+
+        // 모달 외부 클릭 시 닫기
+        document.getElementById('loginModal').addEventListener('click', (e) => {
+            if (e.target.id === 'loginModal') {
+                hideLogin();
+            }
+        });
+
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const loading = document.getElementById('loading');
+            const submitText = document.getElementById('submitText');
+            
+            loading.style.display = 'block';
+            submitText.textContent = 'Processing...';
+
+            const formData = new FormData(e.target);
+            const data = Object.fromEntries(formData);
+
+            try {
+                const endpoint = isLoginMode ? '/api/login' : '/api/register';
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert(result.message);
+                    hideLogin();
+                    // 여기서 Electron 앱을 시작하거나 다른 처리를 할 수 있습니다
+                    if (window.electronAPI) {
+                        window.electronAPI.startApp();
+                    }
+                } else {
+                    alert('Error: ' + result.message);
+                }
+            } catch (error) {
+                alert('Network error occurred.');
+                console.error('Error:', error);
+            } finally {
+                loading.style.display = 'none';
+                submitText.textContent = isLoginMode ? 'Log in' : 'Sign up';
+            }
+        });
+
+        // 페이지 로드 시 애니메이션
+        document.addEventListener('DOMContentLoaded', () => {
+            const elements = document.querySelectorAll('.fade-in-up');
+            elements.forEach((el, index) => {
+                el.style.animationDelay = `${index * 0.1}s`;
+            });
+        });
+    </script>
+</body>
+</html> 

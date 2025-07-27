@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Cursor Assistant - 메인</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 25%, #0f3460 50%, #533483 75%, #7209b7 100%);
+            color: white;
+            min-height: 100vh;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        body::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: 
+                radial-gradient(circle at 20% 80%, rgba(120, 119, 198, 0.3) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(255, 119, 198, 0.3) 0%, transparent 50%),
+                radial-gradient(circle at 40% 40%, rgba(120, 219, 255, 0.2) 0%, transparent 50%);
+            pointer-events: none;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        .card {
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(15px);
+            border-radius: 20px;
+            padding: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            position: relative;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, transparent 100%);
+            border-radius: 20px;
+            pointer-events: none;
+        }
+
+        .card h2 {
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            color: #fff;
+        }
+
+        .command-examples {
+            list-style: none;
+        }
+
+        .command-examples li {
+            background: rgba(0, 0, 0, 0.3);
+            margin-bottom: 10px;
+            padding: 15px;
+            border-radius: 10px;
+            border-left: 4px solid #58a6ff;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .command-examples li:hover {
+            background: rgba(0, 0, 0, 0.5);
+            transform: translateX(5px);
+            border-left-color: #7c3aed;
+        }
+
+        .command-examples .command {
+            font-weight: bold;
+            color: #58a6ff;
+            margin-bottom: 5px;
+        }
+
+        .command-examples .description {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+
+        .status-section {
+            text-align: center;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #4CAF50;
+            margin-right: 10px;
+            animation: pulse 2s infinite;
+        }
+
+        .status-indicator.inactive {
+            background: #f44336;
+            animation: none;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+
+        .shortcuts {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .shortcut-item {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .shortcut-item:hover {
+            background: rgba(0, 0, 0, 0.5);
+            transform: translateY(-2px);
+        }
+
+        .shortcut-key {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-weight: bold;
+            margin-bottom: 5px;
+            display: inline-block;
+        }
+
+        .shortcut-description {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+
+        .history-section {
+            margin-top: 40px;
+        }
+
+        .history-list {
+            max-height: 300px;
+            overflow-y: auto;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            padding: 20px;
+        }
+
+        .history-item {
+            background: rgba(0, 0, 0, 0.3);
+            margin-bottom: 10px;
+            padding: 15px;
+            border-radius: 10px;
+            border-left: 4px solid #58a6ff;
+        }
+
+        .history-item.success {
+            border-left-color: #4CAF50;
+        }
+
+        .history-item.error {
+            border-left-color: #f44336;
+        }
+
+        .history-command {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .history-result {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+
+        .history-time {
+            font-size: 0.8rem;
+            opacity: 0.6;
+            margin-top: 5px;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .footer p {
+            opacity: 0.7;
+        }
+
+
+
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎤 Voice Cursor Assistant</h1>
+            <p>음성으로 컴퓨터를 조작하는 AI 비서</p>
+        </div>
+
+        <div class="main-content">
+            <div class="card">
+                <h2>📝 사용 가능한 명령어</h2>
+                <ul class="command-examples">
+                    <li>
+                        <div class="command">"설정 열어줘"</div>
+                        <div class="description">시스템 설정 창을 엽니다</div>
+                    </li>
+                    <li>
+                        <div class="command">"오른쪽 주황색 버튼 눌러줘"</div>
+                        <div class="description">화면에서 해당 요소를 찾아 클릭합니다</div>
+                    </li>
+                    <li>
+                        <div class="command">"구글에서 나이아가라 폭포 검색해줘"</div>
+                        <div class="description">웹 검색을 실행합니다</div>
+                    </li>
+                    <li>
+                        <div class="command">"페이지 아래로 스크롤해줘"</div>
+                        <div class="description">페이지를 아래로 스크롤합니다</div>
+                    </li>
+                    <li>
+                        <div class="command">"검색창에 '안녕하세요' 입력해줘"</div>
+                        <div class="description">텍스트를 입력합니다</div>
+                    </li>
+                </ul>
+            </div>
+
+            <div class="card">
+                <h2>⚙️ 시스템 상태</h2>
+                <div class="status-section">
+                    <div class="status-indicator" id="statusIndicator"></div>
+                    <span id="statusText">시스템 준비 완료</span>
+                </div>
+
+                <h3 style="margin-top: 30px; margin-bottom: 15px;">⌨️ 단축키</h3>
+                <div class="shortcuts">
+                    <div class="shortcut-item">
+                        <div class="shortcut-key">Ctrl + Shift + V</div>
+                        <div class="shortcut-description">음성 인식 시작/중지</div>
+                    </div>
+                    <div class="shortcut-item">
+                        <div class="shortcut-key">Ctrl + Shift + H</div>
+                        <div class="shortcut-description">툴바 숨기기/보이기</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="history-section">
+            <h2>📋 명령 실행 히스토리</h2>
+            <div class="history-list" id="historyList">
+                <div class="history-item">
+                    <div class="history-command">시스템 시작</div>
+                    <div class="history-result">Voice Cursor Assistant가 성공적으로 시작되었습니다.</div>
+                    <div class="history-time">방금 전</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>Voice Cursor Assistant v1.0.0 | Cursor AI 기반 음성 조작 시스템</p>
+        </div>
+    </div>
+
+
+
+    <script>
+        const { ipcRenderer } = require('electron');
+
+        // DOM 요소들
+        const statusIndicator = document.getElementById('statusIndicator');
+        const statusText = document.getElementById('statusText');
+        const historyList = document.getElementById('historyList');
+
+        // 상태 업데이트 함수
+        function updateStatus(isActive, message) {
+            statusIndicator.classList.toggle('inactive', !isActive);
+            statusText.textContent = message;
+        }
+
+        // 히스토리에 항목 추가
+        function addHistoryItem(command, result, isSuccess = true) {
+            const historyItem = document.createElement('div');
+            historyItem.className = `history-item ${isSuccess ? 'success' : 'error'}`;
+            
+            const time = new Date().toLocaleTimeString();
+            
+            historyItem.innerHTML = `
+                <div class="history-command">${command}</div>
+                <div class="history-result">${result}</div>
+                <div class="history-time">${time}</div>
+            `;
+            
+            historyList.insertBefore(historyItem, historyList.firstChild);
+            
+            // 최대 10개 항목만 유지
+            while (historyList.children.length > 10) {
+                historyList.removeChild(historyList.lastChild);
+            }
+        }
+
+
+
+        // IPC 이벤트 리스너
+        ipcRenderer.on('listening-start', () => {
+            updateStatus(true, '음성 인식 중...');
+        });
+
+        ipcRenderer.on('listening-stop', () => {
+            updateStatus(false, '대기 중');
+        });
+
+        ipcRenderer.on('command-result', (event, data) => {
+            if (data.success) {
+                addHistoryItem(data.command, '명령이 성공적으로 실행되었습니다.', true);
+            } else {
+                addHistoryItem(data.command, `오류: ${data.error}`, false);
+            }
+        });
+
+                
+
+        // 초기 상태 설정
+        updateStatus(false, '시스템 준비 완료');
+    </script>
+</body>
+</html> 

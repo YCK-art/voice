@@ -1,0 +1,1072 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Cursor Assistant</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: transparent;
+            color: white;
+            overflow: hidden;
+            user-select: none;
+            -webkit-app-region: drag;
+            pointer-events: none; /* 기본적으로 클릭 이벤트 통과 */
+        }
+
+        .toolbar {
+            display: flex;
+            align-items: center;
+            flex-wrap: nowrap;
+            width: 100%;
+            box-sizing: border-box;
+            padding: 6px 20px;
+            background: rgba(0, 0, 0, 0.4); /* 투명도 조정 */
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            min-width: 600px;
+            margin: 3px;
+            height: 62px;
+            transition: none;
+            -webkit-app-region: drag; /* 툴바 전체 드래그 가능 */
+            pointer-events: auto; /* 툴바 내부는 클릭 가능 */
+            cursor: grab; /* 드래그 가능함을 표시 */
+        }
+
+        .toolbar:active {
+            cursor: grabbing;
+        }
+
+        .assistant-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            width: 600px;
+            margin: 0 auto;
+            pointer-events: auto !important;
+        }
+        .toolbar, .chat-container {
+            width: 100%;
+            min-width: 0;
+        }
+        .chat-container {
+            margin-top: 5px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            display: none; /* 기본적으로 숨김 */
+            padding: 15px;
+            box-sizing: border-box;
+            height: 300px; /* 고정 높이로 설정 */
+            overflow: hidden; /* 내부 스크롤만 허용 */
+            -webkit-app-region: no-drag; /* 드래그 비활성화 */
+            pointer-events: auto; /* 채팅 영역은 클릭 가능 */
+        }
+
+        .chat-container.show {
+            display: block;
+        }
+
+        .top-section {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            -webkit-app-region: drag; /* 툴바 전체 드래그 가능 */
+        }
+
+        .left-section {
+            flex: 0 0 auto;
+            min-width: 150px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            -webkit-app-region: drag; /* 툴바 전체 드래그 가능 */
+        }
+
+        .mic-button {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: none;
+            background: rgba(255, 255, 255, 0.1);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            -webkit-app-region: no-drag;
+        }
+
+        .mic-button:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: scale(1.05);
+        }
+
+        .mic-button.active {
+            background: #e74c3c;
+            animation: pulse 1.5s infinite;
+        }
+
+        .mic-button.active:hover {
+            background: #c0392b;
+        }
+
+        .mic-icon {
+            width: 20px;
+            height: 20px;
+            fill: white;
+        }
+
+        .status {
+            font-size: 12px;
+            font-weight: 500;
+            opacity: 0.9;
+        }
+
+
+
+        .chat-area {
+            height: 100%; /* 부모 컨테이너의 전체 높이 사용 */
+            overflow-y: auto; /* auto로 변경 */
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            display: block;
+            scrollbar-width: thin;
+            scrollbar-color: #888 #222;
+            position: relative;
+            -webkit-app-region: no-drag; /* 드래그 비활성화 */
+        }
+        .chat-area::-webkit-scrollbar {
+            width: 14px; /* 스크롤바 너비 더 증가 */
+        }
+        .chat-area::-webkit-scrollbar-thumb {
+            background: #aaa; /* 더 밝은 색상 */
+            border-radius: 8px;
+            border: 2px solid transparent;
+            background-clip: content-box;
+        }
+        .chat-area::-webkit-scrollbar-thumb:hover {
+            background: #ccc; /* 호버 시 더 밝게 */
+        }
+        .chat-area::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.3); /* 더 밝은 트랙 */
+            border-radius: 8px;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+                max-height: 0;
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+                max-height: 300px;
+            }
+        }
+
+        .chat-message {
+            margin: 5px 0;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            line-height: 1.4;
+            max-width: 80%;
+            word-wrap: break-word;
+            display: block; /* flex-shrink 제거하고 block으로 */
+            -webkit-app-region: no-drag; /* 드래그 비활성화 */
+        }
+
+        .user-message {
+            background: rgba(255, 255, 255, 0.15);
+            color: white;
+            margin-left: auto;
+            margin-right: 3px;
+            text-align: right;
+            max-width: 70%;
+            width: fit-content;
+        }
+
+        .assistant-message {
+            background: rgba(0, 0, 0, 0.25); /* 투명도 조정 */
+            color: white;
+            margin-left: 3px;
+            margin-right: auto;
+            text-align: left;
+            max-width: 80%;
+            width: fit-content;
+        }
+
+        .assistant-message p {
+            margin: 14px 0 !important;
+            font-size: 1.05rem !important;
+            line-height: 1.7 !important;
+            color: #fff !important;
+        }
+        .assistant-message ul {
+            margin: 12px 0 12px 20px !important;
+            padding-left: 18px !important;
+        }
+        .assistant-message li {
+            margin: 6px 0 !important;
+            font-size: 1.02rem !important;
+            color: #fff !important;
+            line-height: 1.6 !important;
+            list-style-type: disc !important;
+        }
+
+        .assistant-message strong {
+            color: #fff !important;
+            font-weight: bold !important;
+        }
+
+        .loading-dots {
+            animation: loading 1.5s infinite;
+        }
+
+        @keyframes loading {
+            0%, 20% { opacity: 0; }
+            50% { opacity: 1; }
+            80%, 100% { opacity: 0; }
+        }
+        
+        .loading-message {
+            opacity: 0.8;
+        }
+        
+        .loading-text {
+            color: #aaa;
+            font-style: italic;
+        }
+        
+        .typing-cursor {
+            display: inline-block;
+            width: 2px;
+            height: 1em;
+            background: #fff;
+            animation: blink 1s infinite;
+            margin-left: 2px;
+        }
+
+        .center-section {
+            flex: 1;
+            margin: 0 15px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 15px;
+            -webkit-app-region: drag; /* 드래그 활성화 */
+        }
+
+        .shortcut-button {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 6px 10px;
+            color: white;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            -webkit-app-region: no-drag;
+            line-height: 1;
+        }
+
+        .shortcut-button:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .cmd-symbol {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            padding: 1px 3px;
+            font-size: 11px;
+            font-weight: bold;
+            display: inline-block;
+            min-width: 12px;
+            text-align: center;
+            line-height: 1.2;
+            vertical-align: middle;
+        }
+
+        .action-button {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 6px 12px;
+            color: white;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            -webkit-app-region: no-drag;
+        }
+
+        .action-button:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .hidden-input-container {
+            display: none;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 15px;
+            padding: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            width: 100%;
+            max-width: 600px;
+            pointer-events: auto !important;
+            -webkit-app-region: no-drag !important;
+        }
+
+        .hidden-input-container.show {
+            display: flex;
+            animation: slideDownFade 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .hidden-input-container.hide {
+            animation: slideUpFade 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        @keyframes slideDownFade {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes slideUpFade {
+            from {
+                opacity: 1;
+                transform: translateY(0);
+            }
+            to {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+        }
+
+        .hidden-input {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 8px 12px;
+            color: white;
+            font-size: 12px;
+            outline: none;
+            pointer-events: auto !important;
+            -webkit-app-region: no-drag !important;
+            user-select: text !important;
+            cursor: text !important;
+        }
+
+        .hidden-input::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .submit-button {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            padding: 8px 12px;
+            color: white;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            pointer-events: auto !important;
+            -webkit-app-region: no-drag !important;
+        }
+
+        .submit-button:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .submit-icon {
+            width: 16px;
+            height: 16px;
+            fill: white;
+            transform: rotate(-90deg); /* 위쪽 화살표로 회전 */
+        }
+
+        .right-section {
+            flex: 0 0 auto;
+            min-width: 40px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            -webkit-app-region: drag; /* 툴바 전체 드래그 가능 */
+        }
+
+        .control-button {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            border: none;
+            background: rgba(255, 255, 255, 0.05);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            -webkit-app-region: no-drag;
+        }
+
+        .control-button:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .control-icon {
+            width: 14px;
+            height: 14px;
+            fill: white;
+        }
+
+
+
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.7);
+            }
+            70% {
+                box-shadow: 0 0 0 10px rgba(231, 76, 60, 0);
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(231, 76, 60, 0);
+            }
+        }
+
+        .voice-wave {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            height: 20px;
+        }
+
+        .wave-bar {
+            width: 3px;
+            background: rgba(255, 255, 255, 0.6);
+            border-radius: 2px;
+            transition: all 0.1s ease;
+            height: 4px;
+        }
+
+        .wave-bar.listening {
+            background: rgba(255, 255, 255, 0.8);
+            height: 8px;
+        }
+
+        .wave-bar.voice-detected {
+            background: rgba(255, 255, 255, 0.9);
+            height: 20px;
+        }
+
+        .recording-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.9);
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0.3; }
+        }
+
+        .shortcut-hint {
+            font-size: 12px;
+            opacity: 0.8;
+            margin-left: 8px;
+            font-weight: 500;
+        }
+        
+        .status-info {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            margin-left: 7px;
+        }
+        
+        .status {
+            font-size: 14px;
+            color: white;
+            opacity: 0.9;
+            font-weight: 500;
+            margin-bottom: 1px;
+            text-align: left;
+        }
+        
+        .shortcut-hint {
+            font-size: 11px;
+            opacity: 0.7;
+            font-weight: 400;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+        }
+        .shortcut-cmd {
+            font-size: 16px;
+            font-weight: 600;
+            line-height: 1;
+            margin-right: 1px;
+            vertical-align: -2px;
+        }
+        .shortcut-x {
+            font-size: 13px;
+            font-weight: 400;
+            line-height: 1;
+        }
+        
+        .left-section {
+            display: flex;
+            align-items: center;
+            flex: 0 0 auto;
+            min-width: 100px;
+        }
+        
+        .toolbar {
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 6px 18px;
+            max-height: 57px;
+            align-items: center;
+            flex-wrap: nowrap;
+            width: 100%;
+            box-sizing: border-box;
+        }
+    </style>
+</head>
+<body>
+    <div class="assistant-wrapper">
+        <div class="toolbar">
+            <div class="top-section">
+                <div class="left-section">
+                    <button class="mic-button" id="micButton" title="음성 인식 시작/중지 (⌘+X)">
+                        <svg class="mic-icon" viewBox="0 0 24 24">
+                            <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+                            <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+                        </svg>
+                    </button>
+                    <div class="voice-wave" id="voiceWave">
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                    </div>
+                    <div class="shortcut-button" id="speakShortcut">
+                        Speak
+                        <span class="cmd-symbol">⌘</span>
+                        <span>+X</span>
+                    </div>
+                    <button class="shortcut-button" id="hideButton" title="툴바 숨기기">
+                        Hide
+                        <span class="cmd-symbol">⌘</span>
+                        <span>+H</span>
+                    </button>
+                </div>
+                <div class="center-section">
+                    <button class="shortcut-button" id="askButton" title="Ask a question">
+                        Ask
+                        <span class="cmd-symbol">⌘</span>
+                        <span>+A</span>
+                    </button>
+                </div>
+                <div class="right-section">
+                    <button class="control-button" id="settingsButton" title="설정">
+                        <svg class="control-icon" viewBox="0 0 24 24">
+                            <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
+                        </svg>
+                    </button>
+                    <button class="control-button" id="toggleButton" title="토글">
+                        <svg class="control-icon" viewBox="0 0 24 24">
+                            <path d="M3,6H21V8H3V6M3,11H21V13H3V11M3,16H21V18H3V16Z"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <!-- 툴바 끝 -->
+        
+        <!-- 숨겨진 입력창 -->
+        <div class="hidden-input-container" id="hiddenInputContainer">
+            <input 
+                type="text" 
+                class="hidden-input" 
+                id="hiddenInput" 
+                placeholder="Ask about your screen"
+            >
+            <button class="submit-button" id="submitButton" title="전송">
+                <svg class="submit-icon" viewBox="0 0 24 24">
+                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                </svg>
+            </button>
+        </div>
+        
+        <div class="chat-container" id="chatContainer">
+            <div class="chat-area" id="chatArea">
+                <!-- 대화 메시지들이 여기에 추가됩니다 -->
+            </div>
+        </div>
+    </div>
+
+
+
+    <script>
+            const { ipcRenderer } = require('electron');
+
+            // DOM 요소들
+            const micButton = document.getElementById('micButton');
+            const speakShortcut = document.getElementById('speakShortcut');
+            const askButton = document.getElementById('askButton');
+            const hideButton = document.getElementById('hideButton');
+            const settingsButton = document.getElementById('settingsButton');
+            const toggleButton = document.getElementById('toggleButton');
+            const hiddenInputContainer = document.getElementById('hiddenInputContainer');
+            const hiddenInput = document.getElementById('hiddenInput');
+            const submitButton = document.getElementById('submitButton');
+
+            const voiceWave = document.getElementById('voiceWave');
+            const waveBars = voiceWave.querySelectorAll('.wave-bar');
+            const chatArea = document.getElementById('chatArea');
+            const chatContainer = document.getElementById('chatContainer');
+
+            let isListening = false;
+
+            // 음성 인식 버튼 클릭
+            micButton.addEventListener('click', () => {
+                toggleVoiceRecognition();
+            });
+
+            // Speak 단축키 클릭
+            speakShortcut.addEventListener('click', () => {
+                toggleVoiceRecognition();
+            });
+
+            // Ask 버튼 클릭 (토글 기능)
+            askButton.addEventListener('click', () => {
+                console.log('Ask 버튼 클릭됨');
+                if (hiddenInputContainer.classList.contains('show')) {
+                    console.log('입력창 숨기기');
+                    // 위로 슬라이드 애니메이션 적용
+                    hiddenInputContainer.classList.add('hide');
+                    setTimeout(() => {
+                        hiddenInputContainer.classList.remove('show', 'hide');
+                        hiddenInput.value = '';
+                    }, 300); // 애니메이션 시간과 동일
+                } else {
+                    console.log('입력창 표시하기');
+                    hiddenInputContainer.classList.add('show');
+                    setTimeout(() => {
+                        hiddenInput.focus();
+                        console.log('입력창에 포커스 설정됨');
+                        // 윈도우에 포커스 주기
+                        ipcRenderer.send('focus-window');
+                    }, 100);
+                }
+            });
+
+            // 숨겨진 입력창 처리
+            hiddenInput.addEventListener('keypress', (e) => {
+                console.log('입력창 키프레스 이벤트:', e.key);
+                if (e.key === 'Enter' && hiddenInput.value.trim()) {
+                    executeCommand(hiddenInput.value.trim());
+                    hiddenInput.value = '';
+                    // 위로 슬라이드 애니메이션 적용
+                    hiddenInputContainer.classList.add('hide');
+                    setTimeout(() => {
+                        hiddenInputContainer.classList.remove('show', 'hide');
+                    }, 300);
+                }
+            });
+
+            // 입력창 클릭 이벤트 추가
+            hiddenInput.addEventListener('click', (e) => {
+                console.log('입력창 클릭됨');
+                e.stopPropagation();
+            });
+
+            hiddenInput.addEventListener('focus', () => {
+                console.log('입력창 포커스됨');
+            });
+
+            hiddenInput.addEventListener('blur', () => {
+                console.log('입력창 포커스 해제됨');
+            });
+
+            // Submit 버튼 클릭
+            submitButton.addEventListener('click', () => {
+                if (hiddenInput.value.trim()) {
+                    executeCommand(hiddenInput.value.trim());
+                    hiddenInput.value = '';
+                    // 위로 슬라이드 애니메이션 적용
+                    hiddenInputContainer.classList.add('hide');
+                    setTimeout(() => {
+                        hiddenInputContainer.classList.remove('show', 'hide');
+                    }, 300);
+                }
+            });
+
+            // Cmd+A 단축키로 Ask 입력창 토글
+            ipcRenderer.on('show-ask-input', () => {
+                if (hiddenInputContainer.classList.contains('show')) {
+                    // 위로 슬라이드 애니메이션 적용
+                    hiddenInputContainer.classList.add('hide');
+                    setTimeout(() => {
+                        hiddenInputContainer.classList.remove('show', 'hide');
+                        hiddenInput.value = '';
+                    }, 300); // 애니메이션 시간과 동일
+                } else {
+                    hiddenInputContainer.classList.add('show');
+                    setTimeout(() => {
+                        hiddenInput.focus();
+                        // 윈도우에 포커스 주기
+                        ipcRenderer.send('focus-window');
+                    }, 100);
+                }
+            });
+
+            // 툴바 숨기기
+            hideButton.addEventListener('click', () => {
+                ipcRenderer.send('close-toolbar');
+            });
+
+            // 설정 버튼
+            settingsButton.addEventListener('click', () => {
+                // 설정 창 열기 로직
+                console.log('설정 창 열기');
+            });
+
+            // 토글 버튼
+            toggleButton.addEventListener('click', () => {
+                console.log('토글 버튼 클릭됨');
+                // 토글 기능 구현
+            });
+
+            // 툴바가 자동으로 나타나고 사라지므로 더블클릭 기능 제거
+
+            // 전역 단축키 처리
+            document.addEventListener('keydown', (e) => {
+                if (e.ctrlKey && e.shiftKey && e.key === 'V') {
+                    e.preventDefault();
+                    toggleVoiceRecognition();
+                }
+            });
+
+            function toggleVoiceRecognition() {
+                isListening = !isListening;
+                
+                if (isListening) {
+                    micButton.classList.add('active');
+                    speakShortcut.innerHTML = 'Listening... <span class="cmd-symbol">⌘</span><span>+X</span>';
+                    startVoiceWave();
+                    simulateVoiceWave(); // 시뮬레이션 시작
+                } else {
+                    micButton.classList.remove('active');
+                    speakShortcut.innerHTML = 'Speak <span class="cmd-symbol">⌘</span><span>+X</span>';
+                    stopVoiceWave();
+                }
+                
+                ipcRenderer.send('toggle-voice-recognition');
+            }
+
+            function startVoiceWave() {
+                waveBars.forEach(bar => {
+                    bar.classList.add('listening');
+                });
+            }
+
+            function stopVoiceWave() {
+                waveBars.forEach(bar => {
+                    bar.classList.remove('listening', 'voice-detected');
+                });
+            }
+
+            function updateVoiceWave(volume) {
+                // volume은 0-1 사이의 값
+                const maxHeight = 20;
+                const minHeight = 4;
+                const height = minHeight + (volume * (maxHeight - minHeight));
+                
+                waveBars.forEach((bar, index) => {
+                    const delay = index * 0.1;
+                    setTimeout(() => {
+                        bar.style.height = `${height}px`;
+                        if (volume > 0.3) {
+                            bar.classList.add('voice-detected');
+                        } else {
+                            bar.classList.remove('voice-detected');
+                        }
+                    }, delay * 1000);
+                });
+            }
+
+            // 실제 음성 레벨로 웨이브 업데이트
+            ipcRenderer.on('audio-level', (event, level) => {
+                if (isListening) {
+                    updateVoiceWave(level);
+                }
+            });
+
+            // 음성 인식 시작 이벤트
+            ipcRenderer.on('listening-start', () => {
+                isListening = true;
+                micButton.classList.add('active');
+                statusText.textContent = 'Listening...';
+                startVoiceWave();
+            });
+
+            // 음성 인식 중지 이벤트
+            ipcRenderer.on('listening-stop', () => {
+                isListening = false;
+                micButton.classList.remove('active');
+                speakShortcut.innerHTML = 'Speak <span class="cmd-symbol">⌘</span><span>+X</span>';
+                stopVoiceWave();
+            });
+
+            // 음성 명령 수신
+            ipcRenderer.on('voice-command', (event, command) => {
+                addUserMessage(command);
+            });
+
+            ipcRenderer.on('voice-recognition-start', (event) => {
+                // 채팅창 표시
+                showChatArea();
+                // 기존 로딩 메시지가 있으면 제거
+                if (window.currentLoadingMessage && window.currentLoadingMessage.parentNode) {
+                    window.currentLoadingMessage.remove();
+                }
+                // 첫 말풍선을 "..."로 시작
+                const loadingDiv = addUserMessage('...', true);
+                // 전역 변수로 저장해서 나중에 업데이트할 수 있도록 함
+                window.currentLoadingMessage = loadingDiv;
+            });
+
+            ipcRenderer.on('voice-recognition-result', (event, command, detectedLanguage) => {
+                // 기존 로딩 메시지를 실제 명령어로 업데이트
+                if (window.currentLoadingMessage && window.currentLoadingMessage.parentNode) {
+                    window.currentLoadingMessage.textContent = command;
+                    window.currentLoadingMessage = null;
+                }
+                // 명령 실행 (중복 메시지 방지)
+                ipcRenderer.send('execute-command', command);
+                
+                // 로딩 메시지 추가 (약간의 지연으로 중복 방지)
+                setTimeout(() => {
+                    addLoadingMessage();
+                }, 100);
+            });
+
+            // 시뮬레이션용 음성 웨이브 (실제 음성 인식이 없을 때)
+            function simulateVoiceWave() {
+                if (!isListening) return;
+                
+                const volume = Math.random() * 0.8 + 0.2; // 0.2-1.0 사이 랜덤
+                updateVoiceWave(volume);
+                
+                setTimeout(simulateVoiceWave, 100);
+            }
+
+            function executeCommand(command) {
+                console.log('명령 실행:', command);
+                // 첫 명령 실행 시 채팅 영역 표시
+                showChatArea();
+                addUserMessage(command);
+                ipcRenderer.send('execute-command', command);
+            }
+
+            function showChatArea() {
+                // 채팅 컨테이너가 처음 표시될 때만 실행
+                if (!chatContainer.classList.contains('show')) {
+                    chatContainer.classList.add('show');
+                }
+            }
+
+            function addUserMessage(message, isLoading = false) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'chat-message user-message';
+                
+                if (isLoading) {
+                    messageDiv.innerHTML = message + ' <span class="loading-dots">...</span>';
+                } else {
+                    messageDiv.textContent = message;
+                }
+                
+                chatArea.appendChild(messageDiv);
+                // 스크롤을 맨 아래로 (하지만 위쪽 내용도 볼 수 있도록)
+                setTimeout(() => {
+                    if (chatArea.scrollHeight > chatArea.clientHeight) {
+                        chatArea.scrollTop = chatArea.scrollHeight - chatArea.clientHeight;
+                    }
+                }, 10);
+                return messageDiv;
+            }
+
+            // addAssistantMessage 함수 제거 - 타이핑 효과만 사용
+
+            function updateLoadingMessage(messageDiv, finalMessage) {
+                messageDiv.textContent = finalMessage;
+            }
+            
+            // 로딩 메시지 추가
+            function addLoadingMessage() {
+                // 이미 로딩 메시지가 있으면 추가하지 않음
+                if (window.currentLoadingMessage && window.currentLoadingMessage.parentNode) {
+                    return;
+                }
+                
+                const loadingDiv = document.createElement('div');
+                loadingDiv.className = 'chat-message assistant-message loading-message';
+                loadingDiv.innerHTML = '<span class="loading-text">Reading...</span>';
+                chatArea.appendChild(loadingDiv);
+                chatArea.scrollTop = chatArea.scrollHeight - chatArea.clientHeight;
+                window.currentLoadingMessage = loadingDiv;
+            }
+            
+            // 타이핑 효과로 메시지 표시
+            function typeMessage(messageDiv, text, speed = 10) {
+                let index = 0;
+                messageDiv.innerHTML = '';
+                
+                function typeChar() {
+                    if (index < text.length) {
+                        // HTML 태그를 한 번에 처리
+                        if (text[index] === '<') {
+                            // 태그의 끝을 찾기
+                            let tagEnd = text.indexOf('>', index);
+                            if (tagEnd !== -1) {
+                                let fullTag = text.substring(index, tagEnd + 1);
+                                messageDiv.innerHTML += fullTag;
+                                index = tagEnd + 1;
+                            } else {
+                                messageDiv.innerHTML += text[index];
+                                index++;
+                            }
+                        } else {
+                            messageDiv.innerHTML += text[index];
+                            index++;
+                        }
+                        
+                        chatArea.scrollTop = chatArea.scrollHeight - chatArea.clientHeight;
+                        setTimeout(typeChar, speed);
+                    }
+                }
+                
+                typeChar();
+            }
+
+
+
+
+
+            // IPC 이벤트 리스너 (중복 방지)
+            let isProcessingResult = false;
+            let lastProcessedCommand = '';
+            
+            ipcRenderer.on('command-result', (event, data) => {
+                // 중복 처리 방지
+                if (isProcessingResult) {
+                    console.log('중복 처리 차단됨');
+                    return;
+                }
+                
+                // 같은 명령에 대한 중복 응답 방지
+                const currentCommand = data.command || data.message || '';
+                if (lastProcessedCommand === currentCommand) {
+                    console.log('같은 명령 중복 응답 차단됨');
+                    return;
+                }
+                
+                isProcessingResult = true;
+                lastProcessedCommand = currentCommand;
+                
+                // 기존 로딩 메시지 제거
+                if (window.currentLoadingMessage && window.currentLoadingMessage.parentNode) {
+                    window.currentLoadingMessage.remove();
+                    window.currentLoadingMessage = null;
+                }
+                
+                if (data.success) {
+                    // ChatGPT API로 생성된 대화형 응답 사용
+                    const response = data.message || `✅ ${data.command} 실행 완료`;
+                    
+                    // 타이핑 효과로 메시지 표시
+                    const messageDiv = document.createElement('div');
+                    messageDiv.className = 'chat-message assistant-message';
+                    chatArea.appendChild(messageDiv);
+                    typeMessage(messageDiv, response);
+                } else {
+                    const response = `❌ ${data.error}`;
+                    // 에러 메시지도 타이핑 효과로 표시
+                    const messageDiv = document.createElement('div');
+                    messageDiv.className = 'chat-message assistant-message';
+                    chatArea.appendChild(messageDiv);
+                    typeMessage(messageDiv, response);
+                }
+                
+                // 처리 완료 후 플래그 리셋
+                setTimeout(() => {
+                    isProcessingResult = false;
+                    lastProcessedCommand = '';
+                }, 2000);
+            });
+
+            // 중복된 listening 이벤트 리스너 제거
+
+            // 초기 상태 설정
+            speakShortcut.innerHTML = 'Speak <span class="cmd-symbol">⌘</span><span>+X</span>';
+            
+            // 스크롤 디버깅을 위한 함수 추가
+            function debugScroll() {
+                console.log('=== 스크롤 디버깅 ===');
+                console.log('chatArea.scrollHeight:', chatArea.scrollHeight);
+                console.log('chatArea.clientHeight:', chatArea.clientHeight);
+                console.log('chatArea.scrollTop:', chatArea.scrollTop);
+                console.log('chatArea.offsetHeight:', chatArea.offsetHeight);
+                console.log('chatContainer.offsetHeight:', chatContainer.offsetHeight);
+                console.log('메시지 개수:', chatArea.children.length);
+                
+                // 스크롤을 맨 아래로 (하지만 위쪽 내용도 볼 수 있도록)
+                if (chatArea.scrollHeight > chatArea.clientHeight) {
+                    chatArea.scrollTop = chatArea.scrollHeight - chatArea.clientHeight;
+                }
+                console.log('스크롤 수정 후 scrollTop:', chatArea.scrollTop);
+            }
+            
+            // 메시지 추가 후 디버깅
+            const originalAddUserMessage = addUserMessage;
+            addUserMessage = function(message, isLoading = false) {
+                const result = originalAddUserMessage(message, isLoading);
+                setTimeout(debugScroll, 100);
+                return result;
+            };
+        </script>
+    </body>
+    </html> 
