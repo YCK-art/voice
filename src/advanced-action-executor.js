@@ -1,5 +1,6 @@
 const { spawn } = require('child_process');
 const path = require('path');
+const fs = require('fs');
 const OpenAI = require('openai');
 
 // OpenAI 클라이언트 초기화
@@ -84,6 +85,22 @@ class AdvancedActionExecutor {
         
         case 'ai-search':
           result = await this.performAISearch(analysis.parameters.query, detectedLanguage);
+          break;
+        
+        case 'outlook-calendar':
+          result = await this.performOutlookCalendar(analysis.parameters, detectedLanguage);
+          break;
+        
+        case 'slack':
+          result = await this.performSlackMessage(analysis.parameters, detectedLanguage);
+          break;
+        
+        case 'notion':
+          result = await this.performNotionAction(analysis.parameters, detectedLanguage);
+          break;
+        
+        case 'trello':
+          result = await this.performTrelloAction(analysis.parameters, detectedLanguage);
           break;
         
         default:
@@ -278,7 +295,20 @@ class AdvancedActionExecutor {
       console.log('AI 검색 시작:', query);
       
       const systemPrompts = {
-        ko: `당신은 친근하고 도움이 되는 AI 개인 비서입니다.
+        ko: `You are Guidant, an intelligent desktop assistant that executes tasks, interprets on-screen content, and writes like a professional.
+
+Your core capabilities include:
+1. **Action execution**: When the user asks to open an app (e.g. KakaoTalk, Notion, Outlook), or schedule a meeting in Outlook, you must translate their intent into clear, executable actions. Use concise instructions for UI interaction or app control.
+2. **Professional writing**: When the user requests emails, documents, or explanations, respond with precise, well-structured, and context-aware writing. Match the tone to the task (e.g. formal for emails, informative for reports).
+3. **On-screen interpretation**: When the user refers to what they're seeing (e.g. websites, videos, documents), provide accurate summaries, analyses, or translations based on visible content. Respond with clarity and expertise.
+
+Formatting guidelines:
+- Use structured output: clear titles, bullet points, numbered lists, or tables as appropriate.
+- Keep your tone intelligent, efficient, and helpful—like a smart operating system assistant.
+- Prioritise **doing** over explaining when a task is requested.
+
+You operate as a context-aware assistant. If you're unsure, ask clarifying questions. But when the intent is clear, act immediately.
+
 사용자가 검색 요청을 하고 있습니다. 정확하고 유용한 정보를 제공해주세요.
 
 답변 스타일:
@@ -295,7 +325,20 @@ HTML 형식으로 답변해주세요:
 
 최신 정보를 바탕으로 답변하되, 확실하지 않은 정보는 솔직하게 말해주세요.`,
         
-        en: `You are a friendly and helpful AI personal assistant.
+        en: `You are Guidant, an intelligent desktop assistant that executes tasks, interprets on-screen content, and writes like a professional.
+
+Your core capabilities include:
+1. **Action execution**: When the user asks to open an app (e.g. KakaoTalk, Notion, Outlook), or schedule a meeting in Outlook, you must translate their intent into clear, executable actions. Use concise instructions for UI interaction or app control.
+2. **Professional writing**: When the user requests emails, documents, or explanations, respond with precise, well-structured, and context-aware writing. Match the tone to the task (e.g. formal for emails, informative for reports).
+3. **On-screen interpretation**: When the user refers to what they're seeing (e.g. websites, videos, documents), provide accurate summaries, analyses, or translations based on visible content. Respond with clarity and expertise.
+
+Formatting guidelines:
+- Use structured output: clear titles, bullet points, numbered lists, or tables as appropriate.
+- Keep your tone intelligent, efficient, and helpful—like a smart operating system assistant.
+- Prioritise **doing** over explaining when a task is requested.
+
+You operate as a context-aware assistant. If you're unsure, ask clarifying questions. But when the intent is clear, act immediately.
+
 The user is asking for information. Please provide accurate and useful information.
 
 Response style:
@@ -316,7 +359,7 @@ Answer based on current knowledge, but be honest if you're not sure about someth
       const systemPrompt = systemPrompts[detectedLanguage] || systemPrompts.ko;
 
       const response = await openai.chat.completions.create({
-        model: "gpt-3.5-turbo",
+        model: "gpt-4o",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: query }
@@ -414,6 +457,25 @@ Answer based on current knowledge, but be honest if you're not sure about someth
   // 메시지 보내기
   async performMessage(target, parameters) {
     const message = parameters.text || '';
+    const platform = parameters.platform || 'sms'; // sms, kakao, telegram 등
+    
+    console.log(`performMessage 호출: target=${target}, message=${message}, platform=${platform}`);
+    
+    // 카카오톡 메시지인 경우
+    if (platform === 'kakao' || target.toLowerCase().includes('카카오') || target.toLowerCase().includes('kakao')) {
+      // target에서 실제 수신자 이름 추출 (카카오톡 관련 키워드 제거)
+      let recipient = target;
+      if (target.toLowerCase().includes('카카오톡으로')) {
+        recipient = target.replace(/카카오톡으로\s*/i, '');
+      } else if (target.toLowerCase().includes('카카오')) {
+        recipient = target.replace(/카카오\s*/i, '');
+      }
+      
+      console.log(`카카오톡 메시지 전송: recipient=${recipient}, message=${message}`);
+      return this.performKakaoMessage(recipient, message);
+    }
+    
+    // 일반 SMS인 경우
     const url = `sms:${target}&body=${encodeURIComponent(message)}`;
     
     return new Promise((resolve, reject) => {
@@ -436,6 +498,823 @@ Answer based on current knowledge, but be honest if you're not sure about someth
         reject(new Error(`메시지 보내기 오류: ${error.message}`));
       });
     });
+  }
+
+    // 카카오톡 메시지 전송
+  async performKakaoMessage(recipient, message) {
+    return new Promise((resolve, reject) => {
+      console.log(`카카오톡 메시지 전송 시작: ${recipient}에게 "${message}"`);
+      
+      // 사용자에게 수신자 확인 요청
+      console.log(`⚠️  주의: "${recipient}"에게 메시지를 보내려고 합니다. 정확한 수신자인지 확인해주세요.`);
+      
+      const appleScript = `
+        try
+          -- 카카오톡 활성화 (이미 실행되어 있으면 창을 앞으로 가져옴)
+          tell application "KakaoTalk"
+            activate
+          end tell
+          
+          -- 카카오톡이 로드될 때까지 대기
+          delay 3
+          
+          tell application "System Events"
+            tell process "KakaoTalk"
+              -- 1. 친구 탭으로 이동 (Cmd+1 또는 친구 버튼 클릭)
+              -- 카카오톡에서 친구 탭은 보통 첫 번째 탭
+              key code 18 -- 숫자 1 키 (친구 탭)
+              delay 2
+              
+              -- 2. 친구 검색창에 정확히 포커스 (Cmd+F로 검색창 열기)
+              key code 3 using {command down} -- Cmd+F
+              delay 2
+              
+              -- 3. 기존 검색 내용 삭제
+              key code 51 using {command down} -- Cmd+A로 전체 선택
+              delay 0.5
+              key code 51 -- Delete로 삭제
+              delay 0.5
+              
+              -- 4. 수신자 이름 입력 (한글 입력을 위해 clipboard 사용)
+              set the clipboard to "${recipient}"
+              delay 0.5
+              key code 9 using {command down} -- Cmd+V로 붙여넣기
+              delay 3
+              
+              -- 5. 검색 결과가 로드될 때까지 충분히 대기
+              delay 3
+              
+              -- 6. 검색 결과에서 정확한 매칭 확인 후 선택
+              -- 검색 결과가 정확히 일치하는지 확인
+              tell application "System Events"
+                tell process "KakaoTalk"
+                  -- 검색 결과가 있는지 확인하고 정확한 항목 선택
+                  -- 검색창에 입력된 텍스트가 정확한지 확인
+                  key code 36 -- Enter (정확한 검색 결과가 있을 때만)
+                  delay 2
+                end tell
+              end tell
+            end tell
+          end tell
+          
+          -- 6. 개인톡방이 열릴 때까지 대기
+          delay 3
+          
+          -- 7. 메시지 입력창에 포커스
+          tell application "System Events"
+            tell process "KakaoTalk"
+              -- 메시지 입력창은 보통 하단에 있음
+              click at {400, 700}
+              delay 1
+              
+              -- Tab 키로 추가 시도
+              key code 48 -- Tab
+              delay 1
+            end tell
+          end tell
+          
+          -- 8. 메시지 입력 및 전송
+          tell application "System Events"
+            tell process "KakaoTalk"
+              -- 메시지 입력 (한글 입력을 위해 clipboard 사용)
+              set the clipboard to "${message}"
+              delay 0.5
+              key code 9 using {command down} -- Cmd+V로 붙여넣기
+              delay 1
+              
+              -- Enter 키로 메시지 전송
+              key code 36 -- Enter
+              delay 1
+            end tell
+          end tell
+          
+          return "success"
+        on error errMsg
+          if errMsg contains "kakao_not_found" then
+            return "kakao_not_found"
+          else
+            return "search_failed"
+          end if
+        end try
+      `;
+      
+      const process = spawn('osascript', ['-e', appleScript]);
+      
+      let output = '';
+      let errorOutput = '';
+      
+      process.stdout.on('data', (data) => {
+        output += data.toString();
+        console.log(`AppleScript 출력: ${data.toString()}`);
+      });
+      
+      process.stderr.on('data', (data) => {
+        errorOutput += data.toString();
+        console.log(`AppleScript 오류: ${data.toString()}`);
+      });
+      
+      process.on('close', (code) => {
+        console.log(`AppleScript 종료 코드: ${code}`);
+        console.log(`AppleScript 전체 출력: ${output}`);
+        console.log(`AppleScript 오류 출력: ${errorOutput}`);
+        
+        if (code === 0 && output.includes('success')) {
+          console.log('카카오톡 메시지 전송 성공');
+          resolve({
+            success: true,
+            action: 'kakao-message',
+            target: recipient,
+            message: `${recipient}에게 카카오톡 메시지를 보냈습니다.`
+          });
+        } else if (output.includes('kakao_not_found')) {
+          console.log('카카오톡을 찾을 수 없음');
+          reject(new Error('카카오톡이 설치되어 있지 않거나 실행할 수 없습니다.'));
+        } else if (output.includes('search_failed')) {
+          console.log('검색 실패 - 정확한 수신자를 찾을 수 없음');
+          reject(new Error(`"${recipient}"을(를) 찾을 수 없습니다. 정확한 이름을 확인해주세요.`));
+        } else {
+          console.log('카카오톡 메시지 전송 실패');
+          reject(new Error(`카카오톡 메시지 전송 실패 (코드: ${code}): ${output}`));
+        }
+      });
+      
+      process.on('error', (error) => {
+        reject(new Error(`카카오톡 메시지 전송 오류: ${error.message}`));
+      });
+    });
+  }
+
+  // Outlook 일정 추가 (Puppeteer + AppleScript 하이브리드)
+  async performOutlookCalendar(parameters, detectedLanguage = 'ko') {
+    console.log('Outlook 일정 추가 시도:', parameters);
+    
+    const { date, startTime, endTime, title } = parameters;
+    
+    // 날짜 파싱 및 변환
+    const parsedDate = this.parseDate(date);
+    const parsedStartTime = this.parseTime(startTime);
+    const parsedEndTime = this.parseTime(endTime);
+    
+    console.log('파싱된 값들:', { parsedDate, parsedStartTime, parsedEndTime, title });
+    
+    if (!parsedDate || !parsedStartTime || !parsedEndTime || !title) {
+      const errorMsg = detectedLanguage === 'ko' 
+        ? '날짜, 시간, 또는 제목을 이해하지 못했습니다. 다시 말씀해주세요.' 
+        : 'I couldn\'t understand the date, time, or title. Please try again.';
+      return { success: false, error: errorMsg };
+    }
+
+    try {
+      // 방법 1: 시스템 캘린더 사용 (가장 안정적)
+      console.log('시스템 캘린더 방식 시도...');
+      const result = await this.performSystemCalendar(parsedDate, parsedStartTime, parsedEndTime, title, detectedLanguage);
+      if (result.success) {
+        return result;
+      }
+      
+      // 방법 2: Puppeteer로 Outlook Web 사용
+      if (this.browser) {
+        console.log('Puppeteer로 Outlook Web 시도...');
+        const webResult = await this.performOutlookWebCalendar(parsedDate, parsedStartTime, parsedEndTime, title, detectedLanguage);
+        if (webResult.success) {
+          return webResult;
+        }
+      }
+      
+      // 방법 3: AppleScript (마지막 수단)
+      console.log('AppleScript 방식 시도...');
+      return await this.performOutlookAppleScript(parsedDate, parsedStartTime, parsedEndTime, title, detectedLanguage);
+      
+    } catch (error) {
+      console.error('일정 추가 오류:', error);
+      const errorMsg = detectedLanguage === 'ko'
+        ? `❌ 일정 추가 중 오류가 발생했습니다: ${error.message}`
+        : `❌ Error occurred while adding event: ${error.message}`;
+      
+      return { success: false, error: errorMsg };
+    }
+  }
+
+  // 파일 기반 일정 생성 (가장 확실한 방법)
+  async performSystemCalendar(parsedDate, parsedStartTime, parsedEndTime, title, detectedLanguage) {
+    return new Promise((resolve, reject) => {
+      console.log('파일 기반 일정 생성 시작...');
+      
+      try {
+        // ICS 파일 생성 (iCalendar 형식)
+        const icsContent = this.generateICSFile(title, parsedDate, parsedStartTime, parsedEndTime);
+        const fileName = `일정_${title}_${parsedDate}.ics`;
+        const filePath = path.join(process.cwd(), fileName);
+        
+        // 파일 저장
+        fs.writeFileSync(filePath, icsContent, 'utf8');
+        console.log('ICS 파일 생성됨:', filePath);
+        
+        // 파일을 시스템 캘린더로 열기
+        const openScript = `
+          tell application "Calendar"
+            activate
+            delay 1
+          end tell
+          
+          do shell script "open '${filePath}'"
+        `;
+        
+        const osascript = spawn('osascript', ['-e', openScript]);
+        
+        let output = '';
+        let errorOutput = '';
+        
+        osascript.stdout.on('data', (data) => {
+          output += data.toString();
+          console.log('파일 열기 출력:', data.toString());
+        });
+        
+        osascript.stderr.on('data', (data) => {
+          errorOutput += data.toString();
+          console.error('파일 열기 오류:', data.toString());
+        });
+        
+        osascript.on('close', (code) => {
+          console.log('파일 열기 종료 코드:', code);
+          
+          if (code === 0) {
+            const successMsg = detectedLanguage === 'ko'
+              ? `✅ "${title}" 일정 파일이 생성되었습니다! 캘린더 앱에서 확인 후 추가해주세요. (${parsedDate} ${parsedStartTime}~${parsedEndTime})`
+              : `✅ "${title}" event file has been created! Please check and add it in your calendar app. (${parsedDate} ${parsedStartTime}~${parsedEndTime})`;
+            
+            resolve({ 
+              success: true, 
+              message: successMsg,
+              details: { 
+                date: parsedDate, 
+                startTime: parsedStartTime, 
+                endTime: parsedEndTime, 
+                title,
+                filePath: fileName
+              }
+            });
+          } else {
+            const errorMsg = detectedLanguage === 'ko'
+              ? `❌ 일정 파일 생성에 실패했습니다: ${errorOutput || output}`
+              : `❌ Failed to create event file: ${errorOutput || output}`;
+            
+            resolve({ 
+              success: false, 
+              error: errorMsg,
+              details: { errorOutput, output }
+            });
+          }
+        });
+        
+      } catch (error) {
+        console.error('파일 생성 오류:', error);
+        const errorMsg = detectedLanguage === 'ko'
+          ? `❌ 일정 파일 생성 중 오류가 발생했습니다: ${error.message}`
+          : `❌ Error occurred while creating event file: ${error.message}`;
+        
+        resolve({ 
+          success: false, 
+          error: errorMsg,
+          details: { error: error.message }
+        });
+      }
+    });
+  }
+
+  // ICS 파일 생성 함수
+  generateICSFile(title, date, startTime, endTime) {
+    const startDateTime = `${date.replace(/-/g, '')}T${startTime.replace(/:/g, '')}00`;
+    const endDateTime = `${date.replace(/-/g, '')}T${endTime.replace(/:/g, '')}00`;
+    const uid = `event-${Date.now()}@guidant.app`;
+    
+    return `BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Guidant//Voice Assistant//KO
+BEGIN:VEVENT
+UID:${uid}
+DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').split('.')[0]}Z
+DTSTART:${startDateTime}
+DTEND:${endDateTime}
+SUMMARY:${title}
+DESCRIPTION:Guidant Voice Assistant로 생성된 일정
+END:VEVENT
+END:VCALENDAR`;
+  }
+
+  // Puppeteer로 Outlook Web 사용
+  async performOutlookWebCalendar(parsedDate, parsedStartTime, parsedEndTime, title, detectedLanguage) {
+    try {
+      const page = await this.browser.newPage();
+      
+      // Outlook Web으로 이동
+      await page.goto('https://outlook.office.com/calendar/addcalendar');
+      await page.waitForTimeout(2000);
+      
+      // 로그인이 필요한 경우 처리
+      const loginButton = await page.$('[data-automation-id="login-button"]');
+      if (loginButton) {
+        console.log('Outlook Web 로그인이 필요합니다.');
+        await page.close();
+        return { success: false, error: 'Outlook Web 로그인이 필요합니다.' };
+      }
+      
+      // 새 일정 버튼 클릭
+      await page.click('[data-automation-id="new-event-button"]');
+      await page.waitForTimeout(1000);
+      
+      // 제목 입력
+      await page.type('[data-automation-id="event-title-input"]', title);
+      
+      // 시작 시간 설정
+      await page.type('[data-automation-id="start-time-input"]', `${parsedDate}T${parsedStartTime}:00`);
+      
+      // 종료 시간 설정
+      await page.type('[data-automation-id="end-time-input"]', `${parsedDate}T${parsedEndTime}:00`);
+      
+      // 저장 버튼 클릭
+      await page.click('[data-automation-id="save-button"]');
+      await page.waitForTimeout(2000);
+      
+      await page.close();
+      
+      const successMsg = detectedLanguage === 'ko'
+        ? `✅ "${title}" 일정이 Outlook Web에 성공적으로 추가되었습니다! (${parsedDate} ${parsedStartTime}~${parsedEndTime})`
+        : `✅ "${title}" event has been successfully added to Outlook Web! (${parsedDate} ${parsedStartTime}~${parsedEndTime})`;
+      
+      return { success: true, message: successMsg };
+      
+    } catch (error) {
+      console.error('Outlook Web 오류:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  // 정교한 UI 자동화를 위한 Puppeteer 헬퍼 함수들
+  async performPreciseClick(page, selector, options = {}) {
+    try {
+      await page.waitForSelector(selector, { timeout: 5000 });
+      const element = await page.$(selector);
+      if (element) {
+        await element.click(options);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error(`클릭 실패 (${selector}):`, error.message);
+      return false;
+    }
+  }
+
+  async performPreciseType(page, selector, text, options = {}) {
+    try {
+      await page.waitForSelector(selector, { timeout: 5000 });
+      await page.type(selector, text, options);
+      return true;
+    } catch (error) {
+      console.error(`타이핑 실패 (${selector}):`, error.message);
+      return false;
+    }
+  }
+
+  async waitForElementAndClick(page, selector, timeout = 5000) {
+    try {
+      await page.waitForSelector(selector, { timeout });
+      await page.click(selector);
+      return true;
+    } catch (error) {
+      console.error(`요소 대기 및 클릭 실패 (${selector}):`, error.message);
+      return false;
+    }
+  }
+
+  // 더 정교한 KakaoTalk 자동화 (Puppeteer 사용)
+  async performKakaoMessageWithPuppeteer(recipient, message, detectedLanguage) {
+    try {
+      const page = await this.browser.newPage();
+      
+      // KakaoTalk Web으로 이동
+      await page.goto('https://accounts.kakao.com/login');
+      await page.waitForTimeout(2000);
+      
+      // 로그인이 필요한 경우 처리
+      const loginForm = await page.$('#loginForm');
+      if (loginForm) {
+        console.log('KakaoTalk Web 로그인이 필요합니다.');
+        await page.close();
+        return { success: false, error: 'KakaoTalk Web 로그인이 필요합니다.' };
+      }
+      
+      // 친구 검색
+      await this.performPreciseClick(page, '[data-testid="search-friend"]');
+      await this.performPreciseType(page, '[data-testid="search-input"]', recipient);
+      await page.waitForTimeout(1000);
+      
+      // 검색 결과 클릭
+      await this.waitForElementAndClick(page, `[data-testid="friend-${recipient}"]`);
+      await page.waitForTimeout(1000);
+      
+      // 메시지 입력
+      await this.performPreciseType(page, '[data-testid="message-input"]', message);
+      await page.waitForTimeout(500);
+      
+      // 전송 버튼 클릭
+      await this.waitForElementAndClick(page, '[data-testid="send-button"]');
+      await page.waitForTimeout(2000);
+      
+      await page.close();
+      
+      const successMsg = detectedLanguage === 'ko'
+        ? `✅ "${recipient}"에게 메시지를 성공적으로 전송했습니다: "${message}"`
+        : `✅ Successfully sent message to "${recipient}": "${message}"`;
+      
+      return { success: true, message: successMsg };
+      
+    } catch (error) {
+      console.error('KakaoTalk Web 오류:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  // AppleScript로 Outlook 일정 추가
+  async performOutlookAppleScript(parsedDate, parsedStartTime, parsedEndTime, title, detectedLanguage) {
+    return new Promise((resolve, reject) => {
+      console.log('AppleScript 실행 시작...');
+      
+      // 더 간단하고 직접적인 AppleScript
+      const script = `
+        try
+          -- Outlook 앱이 설치되어 있는지 확인
+          tell application "System Events"
+            set outlookInstalled to exists (file "Microsoft Outlook" of folder "Applications")
+          end tell
+          
+          if not outlookInstalled then
+            return "error: Outlook이 설치되어 있지 않습니다."
+          end if
+          
+          -- Outlook 실행 및 활성화
+          tell application "Microsoft Outlook"
+            activate
+            delay 3
+          end tell
+          
+          -- 일정 생성
+          tell application "Microsoft Outlook"
+            set newEvent to make new calendar event
+            set subject of newEvent to "${title}"
+            set start time of newEvent to date "${parsedDate} ${parsedStartTime}:00"
+            set end time of newEvent to date "${parsedDate} ${parsedEndTime}:00"
+            save newEvent
+            return "success"
+          end tell
+          
+        on error errMsg
+          return "error: " & errMsg
+        end try
+      `;
+      
+      console.log('실행할 AppleScript:', script);
+      
+      const osascript = spawn('osascript', ['-e', script]);
+      
+      let output = '';
+      let errorOutput = '';
+      
+      osascript.stdout.on('data', (data) => {
+        output += data.toString();
+        console.log('AppleScript 출력:', data.toString());
+      });
+      
+      osascript.stderr.on('data', (data) => {
+        errorOutput += data.toString();
+        console.error('AppleScript 오류:', data.toString());
+      });
+      
+      osascript.on('close', (code) => {
+        console.log('AppleScript 종료 코드:', code);
+        console.log('최종 출력:', output);
+        console.log('최종 오류:', errorOutput);
+        
+        if (code === 0 && output.includes('success')) {
+          const successMsg = detectedLanguage === 'ko'
+            ? `✅ "${title}" 일정이 성공적으로 추가되었습니다! (${parsedDate} ${parsedStartTime}~${parsedEndTime})`
+            : `✅ "${title}" event has been successfully added! (${parsedDate} ${parsedStartTime}~${parsedEndTime})`;
+          
+          resolve({ 
+            success: true, 
+            message: successMsg,
+            details: { date: parsedDate, startTime: parsedStartTime, endTime: parsedEndTime, title }
+          });
+                  } else {
+            // Outlook이 설치되지 않았거나 실행되지 않은 경우 대체 방법 시도
+            console.log('Outlook 직접 실행 실패, 대체 방법 시도...');
+            
+            // 방법 1: Outlook을 강제로 실행하고 다시 시도
+            const fallbackScript1 = `
+              tell application "System Events"
+                -- Outlook 앱이 실행 중인지 확인
+                set outlookRunning to exists (processes where name is "Microsoft Outlook")
+                
+                if not outlookRunning then
+                  -- Outlook 앱 실행
+                  do shell script "open -a 'Microsoft Outlook'"
+                  delay 3
+                end if
+              end tell
+              
+              tell application "Microsoft Outlook"
+                activate
+                delay 2
+                
+                try
+                  -- 새 일정 생성
+                  set newEvent to make new calendar event
+                  
+                  -- 제목 설정
+                  set subject of newEvent to "${title}"
+                  
+                  -- 시작 시간 설정
+                  set start time of newEvent to date "${parsedDate} ${parsedStartTime}:00"
+                  
+                  -- 종료 시간 설정
+                  set end time of newEvent to date "${parsedDate} ${parsedEndTime}:00"
+                  
+                  -- 일정 저장
+                  save newEvent
+                  
+                  return "success"
+                on error errMsg
+                  return "error: " & errMsg
+                end try
+              end tell
+            `;
+            
+            // 방법 2: 시스템 캘린더 앱 사용 (Outlook이 실패할 경우)
+            const fallbackScript2 = `
+              tell application "Calendar"
+                activate
+                delay 1
+                
+                try
+                  -- 새 일정 생성
+                  set newEvent to make new event with properties {summary:"${title}", start date:date "${parsedDate} ${parsedStartTime}:00", end date:date "${parsedDate} ${parsedEndTime}:00"}
+                  
+                  return "success"
+                on error errMsg
+                  return "error: " & errMsg
+                end try
+              end tell
+            `;
+          
+                      console.log('대체 방법 1 시도 (Outlook 재실행)...');
+            
+            const fallbackOsascript1 = spawn('osascript', ['-e', fallbackScript1]);
+          
+                      let fallbackOutput1 = '';
+            let fallbackErrorOutput1 = '';
+            
+            fallbackOsascript1.stdout.on('data', (data) => {
+              fallbackOutput1 += data.toString();
+              console.log('대체 방법 1 출력:', data.toString());
+            });
+            
+            fallbackOsascript1.stderr.on('data', (data) => {
+              fallbackErrorOutput1 += data.toString();
+              console.error('대체 방법 1 오류:', data.toString());
+            });
+            
+            fallbackOsascript1.on('close', (fallbackCode1) => {
+              console.log('대체 방법 1 종료 코드:', fallbackCode1);
+              
+              if (fallbackCode1 === 0 && fallbackOutput1.includes('success')) {
+                const successMsg = detectedLanguage === 'ko'
+                  ? `✅ "${title}" 일정이 성공적으로 추가되었습니다! (${parsedDate} ${parsedStartTime}~${parsedEndTime})`
+                  : `✅ "${title}" event has been successfully added! (${parsedDate} ${parsedStartTime}~${parsedEndTime})`;
+                
+                resolve({ 
+                  success: true, 
+                  message: successMsg,
+                  details: { date: parsedDate, startTime: parsedStartTime, endTime: parsedEndTime, title }
+                });
+              } else {
+                // 방법 1 실패, 방법 2 시도 (시스템 캘린더)
+                console.log('대체 방법 2 시도 (시스템 캘린더)...');
+                
+                const fallbackOsascript2 = spawn('osascript', ['-e', fallbackScript2]);
+                
+                let fallbackOutput2 = '';
+                let fallbackErrorOutput2 = '';
+                
+                fallbackOsascript2.stdout.on('data', (data) => {
+                  fallbackOutput2 += data.toString();
+                  console.log('대체 방법 2 출력:', data.toString());
+                });
+                
+                fallbackOsascript2.stderr.on('data', (data) => {
+                  fallbackErrorOutput2 += data.toString();
+                  console.error('대체 방법 2 오류:', data.toString());
+                });
+                
+                fallbackOsascript2.on('close', (fallbackCode2) => {
+                  console.log('대체 방법 2 종료 코드:', fallbackCode2);
+                  
+                  if (fallbackCode2 === 0 && fallbackOutput2.includes('success')) {
+                    const successMsg = detectedLanguage === 'ko'
+                      ? `✅ "${title}" 일정이 시스템 캘린더에 성공적으로 추가되었습니다! (${parsedDate} ${parsedStartTime}~${parsedEndTime})`
+                      : `✅ "${title}" event has been successfully added to system calendar! (${parsedDate} ${parsedStartTime}~${parsedEndTime})`;
+                    
+                    resolve({ 
+                      success: true, 
+                      message: successMsg,
+                      details: { date: parsedDate, startTime: parsedStartTime, endTime: parsedEndTime, title, calendar: 'system' }
+                    });
+                  } else {
+                    const errorMsg = detectedLanguage === 'ko'
+                      ? `❌ 일정 추가에 실패했습니다. Outlook과 시스템 캘린더 모두 시도했지만 실패했습니다. (오류: ${fallbackErrorOutput2 || fallbackOutput2 || fallbackErrorOutput1 || fallbackOutput1 || errorOutput || output})`
+                      : `❌ Failed to add event. Tried both Outlook and system calendar but failed. (Error: ${fallbackErrorOutput2 || fallbackOutput2 || fallbackErrorOutput1 || fallbackOutput1 || errorOutput || output})`;
+                    
+                    resolve({ 
+                      success: false, 
+                      error: errorMsg,
+                      details: { errorOutput, output, fallbackErrorOutput1, fallbackOutput1, fallbackErrorOutput2, fallbackOutput2, code, fallbackCode1, fallbackCode2 }
+                    });
+                  }
+                });
+              }
+            });
+        }
+      });
+    });
+  }
+
+  // 날짜 파싱 함수
+  parseDate(dateStr) {
+    console.log('날짜 파싱 시도:', dateStr);
+    
+    if (!dateStr) return null;
+    
+    // today, tomorrow 처리
+    if (dateStr === 'today' || dateStr === '오늘') {
+      const today = new Date();
+      return today.toISOString().split('T')[0];
+    }
+    
+    if (dateStr === 'tomorrow' || dateStr === '내일') {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      return tomorrow.toISOString().split('T')[0];
+    }
+    
+    // YYYY-MM-DD 형식인 경우
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      return dateStr;
+    }
+    
+    // 한국어 날짜 파싱 (예: "2025년 7월 28일", "2025년7월28일", "7월 28일")
+    const koreanDateMatch = dateStr.match(/(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일/);
+    if (koreanDateMatch) {
+      const year = koreanDateMatch[1];
+      const month = koreanDateMatch[2].padStart(2, '0');
+      const day = koreanDateMatch[3].padStart(2, '0');
+      const result = `${year}-${month}-${day}`;
+      console.log('한국어 날짜 파싱 결과:', result);
+      return result;
+    }
+    
+    // 년도가 없는 한국어 날짜 파싱 (예: "7월 28일", "8월 12일")
+    const koreanDateNoYearMatch = dateStr.match(/(\d{1,2})월\s*(\d{1,2})일/);
+    if (koreanDateNoYearMatch) {
+      const currentYear = new Date().getFullYear();
+      const month = koreanDateNoYearMatch[1].padStart(2, '0');
+      const day = koreanDateNoYearMatch[2].padStart(2, '0');
+      const result = `${currentYear}-${month}-${day}`;
+      console.log('한국어 날짜 파싱 결과 (년도 없음):', result);
+      return result;
+    }
+    
+    // 영어 날짜 파싱 (예: "July 28, 2025", "July 28th, 2025")
+    const englishDateMatch = dateStr.match(/(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})/i);
+    if (englishDateMatch) {
+      const months = {
+        'january': '01', 'february': '02', 'march': '03', 'april': '04',
+        'may': '05', 'june': '06', 'july': '07', 'august': '08',
+        'september': '09', 'october': '10', 'november': '11', 'december': '12'
+      };
+      const month = months[englishDateMatch[1].toLowerCase()];
+      const day = englishDateMatch[2].padStart(2, '0');
+      const year = englishDateMatch[3];
+      const result = `${year}-${month}-${day}`;
+      console.log('영어 날짜 파싱 결과:', result);
+      return result;
+    }
+    
+    console.log('날짜 파싱 실패:', dateStr);
+    return null;
+  }
+
+  // 시간 파싱 함수
+  parseTime(timeStr) {
+    console.log('시간 파싱 시도:', timeStr);
+    
+    if (!timeStr) return null;
+    
+    // HH:MM 형식인 경우
+    if (/^\d{1,2}:\d{2}$/.test(timeStr)) {
+      return timeStr;
+    }
+    
+    // 한국어 시간 파싱 (예: "오후 2시", "오후 2시반", "오후2시", "오후2시반", "오후 2시 30분")
+    const koreanTimeMatch = timeStr.match(/(오전|오후)\s*(\d{1,2})시(\s*(\d{1,2})분)?(\s*반)?/);
+    if (koreanTimeMatch) {
+      const ampm = koreanTimeMatch[1];
+      let hour = parseInt(koreanTimeMatch[2]);
+      let minute = 0;
+      
+      // "반" 또는 "분" 처리
+      if (koreanTimeMatch[5]) { // "반"이 있는 경우
+        minute = 30;
+      } else if (koreanTimeMatch[4]) { // "분"이 있는 경우
+        minute = parseInt(koreanTimeMatch[4]);
+      }
+      
+      if (ampm === '오후' && hour !== 12) {
+        hour += 12;
+      } else if (ampm === '오전' && hour === 12) {
+        hour = 0;
+      }
+      
+      const result = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+      console.log('한국어 시간 파싱 결과:', result);
+      return result;
+    }
+    
+    // 영어 시간 파싱 (예: "2:00 PM", "2:30 PM", "2 PM", "2:30 PM")
+    const englishTimeMatch = timeStr.match(/(\d{1,2})(?::(\d{2}))?\s*(AM|PM)/i);
+    if (englishTimeMatch) {
+      let hour = parseInt(englishTimeMatch[1]);
+      const minute = englishTimeMatch[2] ? parseInt(englishTimeMatch[2]) : 0;
+      const ampm = englishTimeMatch[3].toUpperCase();
+      
+      if (ampm === 'PM' && hour !== 12) {
+        hour += 12;
+      } else if (ampm === 'AM' && hour === 12) {
+        hour = 0;
+      }
+      
+      const result = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+      console.log('영어 시간 파싱 결과:', result);
+      return result;
+    }
+    
+    // 24시간 형식 (예: "14:00", "14:30")
+    if (/^\d{1,2}:\d{2}$/.test(timeStr)) {
+      const [hour, minute] = timeStr.split(':').map(Number);
+      if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+        const result = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+        console.log('24시간 형식 파싱 결과:', result);
+        return result;
+      }
+    }
+    
+    console.log('시간 파싱 실패:', timeStr);
+    return null;
+  }
+
+  // Slack 메시지 전송 (향후 구현)
+  async performSlackMessage(parameters, detectedLanguage = 'ko') {
+    const notImplementedMsg = detectedLanguage === 'ko'
+      ? 'Slack 메시지 전송 기능은 아직 구현되지 않았습니다.'
+      : 'Slack message sending is not implemented yet.';
+    
+    return {
+      success: false,
+      error: notImplementedMsg
+    };
+  }
+
+  // Notion 액션 (향후 구현)
+  async performNotionAction(parameters, detectedLanguage = 'ko') {
+    const notImplementedMsg = detectedLanguage === 'ko'
+      ? 'Notion 기능은 아직 구현되지 않았습니다.'
+      : 'Notion functionality is not implemented yet.';
+    
+    return {
+      success: false,
+      error: notImplementedMsg
+    };
+  }
+
+  // Trello 액션 (향후 구현)
+  async performTrelloAction(parameters, detectedLanguage = 'ko') {
+    const notImplementedMsg = detectedLanguage === 'ko'
+      ? 'Trello 기능은 아직 구현되지 않았습니다.'
+      : 'Trello functionality is not implemented yet.';
+    
+    return {
+      success: false,
+      error: notImplementedMsg
+    };
   }
 
   // 파일 관리
@@ -1091,7 +1970,21 @@ Answer based on current knowledge, but be honest if you're not sure about someth
           keyPoints: '핵심 포인트',
           features: '특징적인 요소들',
           instruction: '분석 결과를 한국어로 간결하고 구조화된 형태로 작성해주세요:',
-          systemPrompt: '당신은 웹페이지 내용을 분석하고 요약하는 전문가입니다. 구조화되고 명확한 분석 결과를 제공해주세요.'
+          systemPrompt: `You are Guidant, an intelligent desktop assistant that executes tasks, interprets on-screen content, and writes like a professional.
+
+Your core capabilities include:
+1. **Action execution**: When the user asks to open an app (e.g. KakaoTalk, Notion, Outlook), or schedule a meeting in Outlook, you must translate their intent into clear, executable actions. Use concise instructions for UI interaction or app control.
+2. **Professional writing**: When the user requests emails, documents, or explanations, respond with precise, well-structured, and context-aware writing. Match the tone to the task (e.g. formal for emails, informative for reports).
+3. **On-screen interpretation**: When the user refers to what they're seeing (e.g. websites, videos, documents), provide accurate summaries, analyses, or translations based on visible content. Respond with clarity and expertise.
+
+Formatting guidelines:
+- Use structured output: clear titles, bullet points, numbered lists, or tables as appropriate.
+- Keep your tone intelligent, efficient, and helpful—like a smart operating system assistant.
+- Prioritise **doing** over explaining when a task is requested.
+
+You operate as a context-aware assistant. If you're unsure, ask clarifying questions. But when the intent is clear, act immediately.
+
+당신은 웹페이지 내용을 분석하고 요약하는 전문가입니다. 구조화되고 명확한 분석 결과를 제공해주세요.`
         },
         en: {
           intro: 'Please analyze the following webpage:',
@@ -1100,7 +1993,21 @@ Answer based on current knowledge, but be honest if you're not sure about someth
           keyPoints: 'Key Points',
           features: 'Notable Features',
           instruction: 'Please provide the analysis results in English with clear structure and formatting:',
-          systemPrompt: 'You are an expert in analyzing and summarizing webpage content. Provide structured and clear analysis results.'
+          systemPrompt: `You are Guidant, an intelligent desktop assistant that executes tasks, interprets on-screen content, and writes like a professional.
+
+Your core capabilities include:
+1. **Action execution**: When the user asks to open an app (e.g. KakaoTalk, Notion, Outlook), or schedule a meeting in Outlook, you must translate their intent into clear, executable actions. Use concise instructions for UI interaction or app control.
+2. **Professional writing**: When the user requests emails, documents, or explanations, respond with precise, well-structured, and context-aware writing. Match the tone to the task (e.g. formal for emails, informative for reports).
+3. **On-screen interpretation**: When the user refers to what they're seeing (e.g. websites, videos, documents), provide accurate summaries, analyses, or translations based on visible content. Respond with clarity and expertise.
+
+Formatting guidelines:
+- Use structured output: clear titles, bullet points, numbered lists, or tables as appropriate.
+- Keep your tone intelligent, efficient, and helpful—like a smart operating system assistant.
+- Prioritise **doing** over explaining when a task is requested.
+
+You operate as a context-aware assistant. If you're unsure, ask clarifying questions. But when the intent is clear, act immediately.
+
+You are an expert in analyzing and summarizing webpage content. Provide structured and clear analysis results.`
         }
       };
 
@@ -1144,14 +2051,18 @@ URL: ${pageContent.url}
         prompt += `\n주요 링크들:\n${pageContent.links.slice(0, 5).map((link, i) => `${i + 1}. ${link.text} (${link.href})`).join('\n')}\n`;
       }
 
-      prompt += `\n\n이 페이지의 주요 내용을 자연스럽고 명확하게 요약해줘. \n중요한 포인트는 bullet point(ul/li)로 정리해주고, 그 외의 설명은 단락(p)으로 작성해줘.\nPage Type, 구분선, 밑줄, 대문자 강조 등은 사용하지 마.\nChatGPT 답변처럼 자연스럽고 읽기 쉽게 분석해줘.\n`;
+      if (detectedLanguage === 'en') {
+        prompt += `\n\nPlease provide a natural and clear summary of this page's main content. \nIMPORTANT: When creating bullet points, use this EXACT format: <ul><li>• Your content here</li></ul>\nThe bullet point (•) and text MUST be on the same line within each <li> tag.\nWrite other explanations as paragraphs (p).\nDo not use Page Type, separators, underlines, or uppercase emphasis.\nProvide analysis that is natural and easy to read like ChatGPT responses.\n`;
+      } else {
+        prompt += `\n\n이 페이지의 주요 내용을 자연스럽고 명확하게 요약해줘. \n중요: bullet point를 만들 때는 반드시 이 형식을 사용하세요: <ul><li>• 여기에 내용을 작성</li></ul>\nbullet point (•)와 텍스트는 반드시 각 <li> 태그 안에서 같은 줄에 있어야 합니다.\n그 외의 설명은 단락(p)으로 작성해줘.\nPage Type, 구분선, 밑줄, 대문자 강조 등은 사용하지 마.\nChatGPT 답변처럼 자연스럽고 읽기 쉽게 분석해줘.\n`;
+      }
 
       console.log('ChatGPT API 호출 중...');
       console.log('프롬프트 길이:', prompt.length);
       console.log('감지된 언어:', detectedLanguage);
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-3.5-turbo",
+        model: "gpt-4o",
         messages: [
           {
             role: "system",
@@ -1186,7 +2097,21 @@ URL: ${pageContent.url}
   async generateConversationalResponse(analysis, result, detectedLanguage = 'ko') {
     try {
       const systemPrompts = {
-        ko: `당신은 친근하고 도움이 되는 AI 개인 비서입니다. 
+        ko: `You are Guidant, an intelligent desktop assistant that executes tasks, interprets on-screen content, and writes like a professional.
+
+Your core capabilities include:
+1. **Action execution**: When the user asks to open an app (e.g. KakaoTalk, Notion, Outlook), or schedule a meeting in Outlook, you must translate their intent into clear, executable actions. Use concise instructions for UI interaction or app control.
+2. **Professional writing**: When the user requests emails, documents, or explanations, respond with precise, well-structured, and context-aware writing. Match the tone to the task (e.g. formal for emails, informative for reports).
+3. **On-screen interpretation**: When the user refers to what they're seeing (e.g. websites, videos, documents), provide accurate summaries, analyses, or translations based on visible content. Respond with clarity and expertise.
+
+Formatting guidelines:
+- Use structured output: clear titles, bullet points, numbered lists, or tables as appropriate.
+- **Always use bullet points (•) for lists and key information to improve readability.**
+- Keep your tone intelligent, efficient, and helpful—like a smart operating system assistant.
+- Prioritise **doing** over explaining when a task is requested.
+
+You operate as a context-aware assistant. If you're unsure, ask clarifying questions. But when the intent is clear, act immediately.
+
 사용자의 명령을 실행한 후 자연스럽고 친근한 한국어로 응답해주세요.
 
 응답 스타일:
@@ -1194,13 +2119,27 @@ URL: ${pageContent.url}
 - 이모지 적절히 사용 (하지만 과도하지 않게)
 - 명령 실행 완료를 자연스럽게 알림
 - 사용자에게 도움이 되었다는 느낌을 줌
+- **가독성을 위해 bullet point (•)를 최대한 활용**
 
 예시:
 - "네, 설정을 열어드릴게요! 🖥️"
 - "좋아요! Chrome 브라우저를 열었습니다 🌐"
 - "알겠어요! '나이아가라 폭포'를 검색해드릴게요 🔍"`,
         
-        en: `You are a friendly and helpful AI personal assistant.
+        en: `You are Guidant, an intelligent desktop assistant that executes tasks, interprets on-screen content, and writes like a professional.
+
+Your core capabilities include:
+1. **Action execution**: When the user asks to open an app (e.g. KakaoTalk, Notion, Outlook), or schedule a meeting in Outlook, you must translate their intent into clear, executable actions. Use concise instructions for UI interaction or app control.
+2. **Professional writing**: When the user requests emails, documents, or explanations, respond with precise, well-structured, and context-aware writing. Match the tone to the task (e.g. formal for emails, informative for reports).
+3. **On-screen interpretation**: When the user refers to what they're seeing (e.g. websites, videos, documents), provide accurate summaries, analyses, or translations based on visible content. Respond with clarity and expertise.
+
+Formatting guidelines:
+- Use structured output: clear titles, bullet points, numbered lists, or tables as appropriate.
+- Keep your tone intelligent, efficient, and helpful—like a smart operating system assistant.
+- Prioritise **doing** over explaining when a task is requested.
+
+You operate as a context-aware assistant. If you're unsure, ask clarifying questions. But when the intent is clear, act immediately.
+
 After executing the user's command, respond in natural and friendly English.
 
 Response style:
@@ -1226,7 +2165,7 @@ Examples:
 위 정보를 바탕으로 자연스러운 대화형 응답을 생성해주세요.`;
 
       const response = await openai.chat.completions.create({
-        model: "gpt-3.5-turbo",
+        model: "gpt-4o",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt }
@@ -1246,8 +2185,12 @@ Examples:
   // 분석 결과 포맷팅 함수
   formatAnalysisResult(result, detectedLanguage) {
     try {
-      // h2, hr, 구분선 등 제거
+      // 코드 블록 제거 (```html, ```json 등)
       let formatted = result
+        .replace(/```[a-zA-Z]*\n?/g, '') // 코드 블록 시작 제거
+        .replace(/```\n?/g, '') // 코드 블록 끝 제거
+        .replace(/'''[a-zA-Z]*\n?/g, '') // 삼중 따옴표 코드 블록 제거
+        .replace(/'''\n?/g, '') // 삼중 따옴표 끝 제거
         .replace(/<h2>.*?<\/h2>/g, '')
         .replace(/<hr ?\/?>(\n)?/g, '')
         .replace(/<strong>(.*?)<\/strong>/g, '<b>$1</b>'); // 볼드만 유지
@@ -1319,6 +2262,12 @@ Examples:
     this.conversationMemory.tabAnalysis.clear();
     this.conversationMemory.lastCommands = [];
     console.log('메모리 초기화됨');
+  }
+
+  clearConversationMemory() {
+    this.conversationMemory.tabAnalysis.clear();
+    this.conversationMemory.lastCommands = [];
+    console.log('대화 메모리 초기화됨');
   }
 
   // 폴백 응답 생성

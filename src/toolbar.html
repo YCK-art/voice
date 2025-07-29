@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Voice Cursor Assistant</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -12,12 +15,47 @@
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Geist', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: transparent;
             color: white;
-            overflow: hidden;
+            overflow: visible; /* 검색창이 툴바 영역을 벗어날 수 있도록 */
             user-select: none;
-            pointer-events: none; /* 기본적으로 클릭 이벤트 통과 */
+            pointer-events: none; /* 기본적으로 클릭 이벤트 비활성화 */
+            width: 800px; /* 검색창 길이에 맞춰 고정 */
+            height: 50px; /* 기본 툴바 높이 */
+            margin: 0;
+            padding: 0;
+            position: relative; /* 절대 위치 요소를 위한 기준점 */
+        }
+
+        /* 툴바 영역만 클릭 가능하도록 설정 */
+        .toolbar {
+            pointer-events: auto !important;
+        }
+
+        /* 채팅창이 표시될 때만 해당 영역 클릭 가능 */
+        .chat-container.show {
+            pointer-events: auto !important;
+        }
+
+        /* 입력창이 표시될 때만 해당 영역 클릭 가능 */
+        .hidden-input-container.show {
+            pointer-events: auto !important;
+        }
+
+        /* 툴바가 마우스에 가까워지면 위로 올라오는 효과 */
+        .toolbar {
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+
+        .toolbar.hover {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .toolbar.normal {
+            opacity: 0.8;
+            transform: translateY(-5px);
         }
 
         .toolbar {
@@ -27,27 +65,52 @@
             width: 100%;
             box-sizing: border-box;
             padding: 6px 20px;
-            background: rgba(0, 0, 0, 0.4); /* 투명도 조정 */
+            background: rgba(0, 0, 0, 0.7);
             border-radius: 20px;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.1);
-            min-width: 600px;
+            min-width: 400px; /* 기본 툴바 크기 */
             margin: 3px;
-            height: 62px;
+            height: 40px;
             transition: none;
-            pointer-events: auto; /* 툴바 내부는 클릭 가능 */
-            user-select: none; /* 텍스트 선택 방지 */
-            -webkit-app-region: drag; /* Electron 기본 드래그 활성화 */
+            user-select: none;
+            -webkit-app-region: no-drag; /* 커스텀 드래그 사용 */
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 9999;
+            cursor: grab;
+        }
+
+        /* 드래그 관련 스타일 */
+        .toolbar:hover {
+            cursor: grab;
+        }
+
+        .toolbar.dragging {
+            cursor: grabbing !important;
+            transition: none;
+            user-select: none;
         }
 
         .toolbar:active {
             cursor: grabbing;
         }
 
-        .toolbar.dragging {
-            cursor: grabbing;
-            transition: none;
+        /* 툴바 영역 설정 */
+        .toolbar-area {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+        .hidden-input-container.show {
+            pointer-events: auto !important;
+        }
+
+        /* 대화창이 표시될 때만 대화창 영역도 클릭 가능 */
+        .chat-container.show {
+            pointer-events: auto !important;
         }
 
         .assistant-wrapper {
@@ -62,24 +125,23 @@
             width: 100%;
             min-width: 0;
         }
-        .chat-container {
-            margin-top: 5px;
-            background: rgba(0, 0, 0, 0.5);
-            border-radius: 20px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            display: none; /* 기본적으로 숨김 */
+        /* 대화 모드 */
+        .chat-mode {
             padding: 15px;
             box-sizing: border-box;
-            height: 300px; /* 고정 높이로 설정 */
+            min-height: 100px; /* 최소 높이 증가 */
+            max-height: 600px; /* 최대 높이 */
+            height: auto; /* 자동 높이 조정 */
             overflow: hidden; /* 내부 스크롤만 허용 */
             -webkit-app-region: no-drag; /* 드래그 비활성화 */
-            pointer-events: auto; /* 채팅 영역은 클릭 가능 */
+            pointer-events: auto; /* 대화 모드에서는 클릭 가능 */
+            width: 100%;
+            display: none; /* 기본적으로 숨김 */
         }
 
         .chat-container.show {
             display: block;
+            pointer-events: auto; /* 표시될 때만 클릭 가능 */
         }
 
         .top-section {
@@ -99,8 +161,8 @@
         }
 
         .mic-button {
-            width: 40px;
-            height: 40px;
+            width: 36px;
+            height: 36px;
             border-radius: 50%;
             border: none;
             background: rgba(255, 255, 255, 0.1);
@@ -128,8 +190,8 @@
         }
 
         .mic-icon {
-            width: 20px;
-            height: 20px;
+            width: 18px;
+            height: 18px;
             fill: white;
         }
 
@@ -142,32 +204,108 @@
 
 
         .chat-area {
-            height: 100%; /* 부모 컨테이너의 전체 높이 사용 */
-            overflow-y: auto; /* auto로 변경 */
-            background: rgba(0, 0, 0, 0.4);
+            min-height: 50px; /* 최소 높이 */
+            max-height: 450px; /* 최대 높이 조정 (입력창 공간 확보) */
+            overflow-y: auto; /* 내용이 넘치면 스크롤 */
+            overflow-x: hidden; /* 가로 스크롤 방지 */
+            background: transparent;
+            font-family: 'Geist', sans-serif;
+            font-size: 16px; /* 기본 글씨 크기 증가 */
+            line-height: 1.6;
             border-radius: 15px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            border: none;
             display: block;
             scrollbar-width: thin;
-            scrollbar-color: #888 #222;
+            scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
             position: relative;
             -webkit-app-region: no-drag; /* 드래그 비활성화 */
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
+        }
+        
+        /* 대화창 하단 입력창 스타일 */
+        .chat-input-container {
+            margin-top: 10px;
+            padding: 8px 12px;
+            background: transparent;
+            border-radius: 0;
+            border: none;
+        }
+        
+        .chat-input-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .chat-input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 12px;
+            color: white;
+            font-size: 12px;
+            font-family: 'Geist', sans-serif;
+            outline: none;
+            transition: all 0.2s ease;
+            -webkit-app-region: no-drag;
+            height: 32px;
+            box-sizing: border-box;
+        }
+        
+        .chat-input:focus {
+            background: rgba(255, 255, 255, 0.15);
+        }
+        
+        .chat-input::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 11px;
+        }
+        
+        .chat-submit-button {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            -webkit-app-region: no-drag;
+        }
+        
+        .chat-submit-button:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: scale(1.05);
+        }
+        
+        .chat-submit-button svg {
+            width: 14px;
+            height: 14px;
+            stroke: white;
+            fill: none;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
         }
         .chat-area::-webkit-scrollbar {
-            width: 14px; /* 스크롤바 너비 더 증가 */
+            width: 4px; /* 스크롤바 너비 더 얇게 */
         }
         .chat-area::-webkit-scrollbar-thumb {
-            background: #aaa; /* 더 밝은 색상 */
-            border-radius: 8px;
-            border: 2px solid transparent;
-            background-clip: content-box;
+            background: rgba(255, 255, 255, 0.3); /* 반투명한 색상 */
+            border-radius: 2px;
+            border: none;
         }
         .chat-area::-webkit-scrollbar-thumb:hover {
-            background: #ccc; /* 호버 시 더 밝게 */
+            background: rgba(255, 255, 255, 0.5); /* 호버 시 더 밝게 */
         }
         .chat-area::-webkit-scrollbar-track {
-            background: rgba(255, 255, 255, 0.3); /* 더 밝은 트랙 */
-            border-radius: 8px;
+            background: transparent; /* 트랙 투명하게 */
+            border-radius: 0;
         }
 
         @keyframes slideDown {
@@ -199,38 +337,55 @@
             background: rgba(255, 255, 255, 0.15);
             color: white;
             margin-left: auto;
-            margin-right: 3px;
+            margin-right: 10px;
             text-align: right;
             max-width: 70%;
             width: fit-content;
+            font-weight: bold !important;
+            white-space: normal;
+            word-wrap: break-word;
+            word-break: break-word;
         }
 
         .assistant-message {
-            background: rgba(0, 0, 0, 0.25); /* 투명도 조정 */
+            background: none; /* 말풍선 제거 */
             color: white;
             margin-left: 3px;
             margin-right: auto;
             text-align: left;
-            max-width: 80%;
-            width: fit-content;
+            max-width: 100%;
+            width: 100%;
+            padding: 0;
         }
 
         .assistant-message p {
             margin: 14px 0 !important;
-            font-size: 1.05rem !important;
+            font-size: 20px !important;
+            font-family: 'Geist', sans-serif !important;
             line-height: 1.7 !important;
             color: #fff !important;
         }
         .assistant-message ul {
             margin: 12px 0 12px 20px !important;
-            padding-left: 18px !important;
+            padding-left: 0 !important;
+            list-style: none !important;
         }
         .assistant-message li {
             margin: 6px 0 !important;
-            font-size: 1.02rem !important;
+            font-size: 20px !important;
+            font-family: 'Geist', sans-serif !important;
             color: #fff !important;
             line-height: 1.6 !important;
-            list-style-type: disc !important;
+            display: flex !important;
+            align-items: center !important;
+            gap: 8px !important;
+            position: relative !important;
+        }
+        .assistant-message li::before {
+            content: none !important;
+        }
+        .assistant-message li > * {
+            display: inline !important;
         }
 
         .assistant-message strong {
@@ -255,6 +410,41 @@
         .loading-text {
             color: #aaa;
             font-style: italic;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .loading-dots {
+            display: flex;
+            gap: 4px;
+        }
+        
+        .dot {
+            width: 4px;
+            height: 4px;
+            background: #aaa;
+            border-radius: 50%;
+            animation: loadingPulse 1.4s ease-in-out infinite both;
+        }
+        
+        .dot:nth-child(1) {
+            animation-delay: -0.32s;
+        }
+        
+        .dot:nth-child(2) {
+            animation-delay: -0.16s;
+        }
+        
+        @keyframes loadingPulse {
+            0%, 80%, 100% {
+                transform: scale(0);
+                opacity: 0.5;
+            }
+            40% {
+                transform: scale(1);
+                opacity: 1;
+            }
         }
         
         .typing-cursor {
@@ -264,6 +454,80 @@
             background: #fff;
             animation: blink 1s infinite;
             margin-left: 2px;
+        }
+
+        /* 복사 버튼 스타일 */
+        .copy-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            height: 24px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-top: 8px;
+            opacity: 0.7;
+            /* 답변 말풍선 밑에 붙도록 수정 */
+            display: block;
+            margin-left: 0;
+            margin-right: auto;
+        }
+
+        .copy-button:hover {
+            background: rgba(255, 255, 255, 0.2);
+            opacity: 1;
+        }
+
+        .copy-button svg {
+            width: 14px;
+            height: 14px;
+            stroke: #fff;
+            fill: none;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .copy-button.copied {
+            background: rgba(76, 175, 80, 0.3);
+            border-color: rgba(76, 175, 80, 0.5);
+        }
+
+        /* 채팅창 닫기 버튼 스타일 */
+        .close-chat-button {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 16px;
+            height: 16px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            cursor: pointer;
+            opacity: 0.4;
+            transition: all 0.2s ease;
+            z-index: 10;
+        }
+
+        .close-chat-button:hover {
+            opacity: 0.7;
+            background: rgba(0, 0, 0, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+        }
+
+        .close-chat-button svg {
+            width: 8px;
+            height: 8px;
+            stroke: #fff;
+            fill: none;
+            stroke-width: 1.5;
+            stroke-linecap: round;
+            stroke-linejoin: round;
         }
 
         .center-section {
@@ -309,6 +573,10 @@
             vertical-align: middle;
         }
 
+
+
+
+
         .action-button {
             background: rgba(255, 255, 255, 0.05);
             border: 1px solid rgba(255, 255, 255, 0.1);
@@ -325,58 +593,60 @@
             background: rgba(255, 255, 255, 0.1);
         }
 
-        .hidden-input-container {
-            display: none;
-            align-items: center;
-            gap: 10px;
-            margin-top: 10px;
-            background: rgba(0, 0, 0, 0.5);
+        .unified-chat-container {
+            position: fixed;
+            top: 60px; /* 툴바 아래에 위치 */
+            left: 0;
+            transform: translateY(-20px); /* 초기 숨김 위치 */
+            background: rgba(0, 0, 0, 0.6);
             border-radius: 15px;
-            padding: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            width: 100%;
-            max-width: 600px;
-            pointer-events: auto !important;
+            border: 1px solid rgba(0, 0, 0, 0.6);
+            width: 800px; /* 툴바와 같은 너비 */
+            max-width: 800px;
+            pointer-events: auto; /* 클릭 가능하도록 수정 */
             -webkit-app-region: no-drag !important;
+            z-index: 10000; /* 툴바보다 높은 z-index */
+            transition: all 0.3s ease-out;
+            opacity: 0;
+            visibility: hidden;
+            /* 툴바 영역을 벗어나서 표시되도록 설정 */
+            overflow: visible;
+        }
+        
+        /* 통합 대화창이 표시될 때 */
+        .unified-chat-container.show {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0); /* 위로 이동 */
+            pointer-events: auto;
+        }
+        
+        /* 통합 대화창이 숨겨질 때 */
+        .unified-chat-container.hide {
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-20px); /* 숨김 */
         }
 
-        .hidden-input-container.show {
+
+
+        /* 검색 모드 */
+        .search-mode {
             display: flex;
-            animation: slideDownFade 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            align-items: center;
+            gap: 10px; /* 간격 조정 */
+            padding: 10px 20px; /* 패딩 조정 */
+            width: 100%;
+            box-sizing: border-box;
+            background: transparent;
         }
 
-        .hidden-input-container.hide {
-            animation: slideUpFade 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        @keyframes slideDownFade {
-            from {
-                opacity: 0;
-                transform: translateY(-20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        @keyframes slideUpFade {
-            from {
-                opacity: 1;
-                transform: translateY(0);
-            }
-            to {
-                opacity: 0;
-                transform: translateY(-20px);
-            }
-        }
-
-        .hidden-input {
+        .unified-input {
             flex: 1;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: transparent;
+            border: none;
             border-radius: 10px;
-            padding: 8px 12px;
+            padding: 6px 10px;
             color: white;
             font-size: 12px;
             outline: none;
@@ -384,26 +654,37 @@
             -webkit-app-region: no-drag !important;
             user-select: text !important;
             cursor: text !important;
+            min-width: 0;
+            width: 100%;
+            max-width: 750px; /* 검색창 너비 확장 */
+            height: 25px;
+            box-sizing: border-box;
         }
 
         .hidden-input::placeholder {
             color: rgba(255, 255, 255, 0.5);
         }
 
-        .submit-button {
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+        .unified-submit-button {
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.6);
             border-radius: 8px;
-            padding: 8px 12px;
+            padding: 0 12px;
             color: white;
             font-size: 12px;
             cursor: pointer;
             transition: all 0.3s ease;
             pointer-events: auto !important;
             -webkit-app-region: no-drag !important;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 25px;
+            min-width: 30px;
+            box-sizing: border-box;
         }
 
-        .submit-button:hover {
+        .unified-submit-button:hover {
             background: rgba(255, 255, 255, 0.15);
         }
 
@@ -411,7 +692,89 @@
             width: 16px;
             height: 16px;
             fill: white;
-            transform: rotate(-90deg); /* 위쪽 화살표로 회전 */
+            display: block;
+        }
+
+        /* @mention 자동완성 드롭다운 */
+        .mention-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.9);
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            z-index: 1000;
+            max-height: 200px;
+            overflow-y: auto;
+            display: none;
+            margin-top: 5px;
+            transition: opacity 0.2s ease, visibility 0.2s ease;
+        }
+
+        .mention-item {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            border-radius: 6px;
+            margin: 2px 6px;
+        }
+
+        .mention-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .mention-item.selected {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .mention-icon {
+            width: 20px;
+            height: 20px;
+            margin-right: 8px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+
+        .mention-icon svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        /* 서비스별 색상 */
+        .mention-item[data-service="outlook"] .mention-icon {
+            background: #0078d4;
+        }
+
+        .mention-item[data-service="slack"] .mention-icon {
+            background: #4a154b;
+        }
+
+        .mention-item[data-service="notion"] .mention-icon {
+            background: #000000;
+        }
+
+        .mention-item[data-service="trello"] .mention-icon {
+            background: #0079bf;
+        }
+
+        .mention-name {
+            color: white;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .mention-description {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 12px;
+            margin-left: auto;
         }
 
         .right-section {
@@ -567,7 +930,8 @@
 </head>
 <body>
     <div class="assistant-wrapper">
-        <div class="toolbar">
+        <div class="toolbar-area">
+            <div class="toolbar">
             <div class="top-section">
                 <div class="left-section">
                     <button class="mic-button" id="micButton" title="음성 인식 시작/중지 (⌘+X)">
@@ -590,11 +954,6 @@
                         <span class="cmd-symbol">⌘</span>
                         <span>+X</span>
                     </div>
-                    <button class="shortcut-button" id="hideButton" title="툴바 숨기기">
-                        Hide
-                        <span class="cmd-symbol">⌘</span>
-                        <span>+H</span>
-                    </button>
                 </div>
                 <div class="center-section">
                     <button class="shortcut-button" id="askButton" title="Ask a question">
@@ -604,12 +963,7 @@
                     </button>
                 </div>
                 <div class="right-section">
-                    <button class="control-button" id="settingsButton" title="설정">
-                        <svg class="control-icon" viewBox="0 0 24 24">
-                            <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
-                        </svg>
-                    </button>
-                    <button class="control-button" id="toggleButton" title="토글">
+                    <button class="control-button" id="toggleButton" title="메뉴">
                         <svg class="control-icon" viewBox="0 0 24 24">
                             <path d="M3,6H21V8H3V6M3,11H21V13H3V11M3,16H21V18H3V16Z"/>
                         </svg>
@@ -619,25 +973,92 @@
         </div>
         <!-- 툴바 끝 -->
         
-        <!-- 숨겨진 입력창 -->
-        <div class="hidden-input-container" id="hiddenInputContainer">
-            <input 
-                type="text" 
-                class="hidden-input" 
-                id="hiddenInput" 
-                placeholder="Ask about your screen"
-            >
-            <button class="submit-button" id="submitButton" title="전송">
-                <svg class="submit-icon" viewBox="0 0 24 24">
-                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
-                </svg>
-            </button>
-        </div>
-        
-        <div class="chat-container" id="chatContainer">
-            <div class="chat-area" id="chatArea">
-                <!-- 대화 메시지들이 여기에 추가됩니다 -->
+        <!-- 통합된 대화창 (검색창 + 대화창) -->
+        <div class="unified-chat-container" id="unifiedChatContainer">
+            <!-- 검색 모드 -->
+            <div class="search-mode" id="searchMode">
+                <input 
+                    type="text" 
+                    class="unified-input" 
+                    id="unifiedInput" 
+                    placeholder="Ask about your screen"
+                >
+                <button class="unified-submit-button" id="unifiedSubmitButton" title="전송">
+                    <svg class="submit-icon" viewBox="0 0 24 24">
+                        <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8-8-8z"/>
+                    </svg>
+                </button>
+                
+                <!-- @mention 자동완성 드롭다운 -->
+                <div class="mention-dropdown" id="mentionDropdown">
+                    <div class="mention-item" data-service="outlook">
+                        <div class="mention-icon">
+                            <svg viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M7.88 3.39L6.6 1.86 2 5.71l1.29 1.53 4.59-3.85zM22 5.72l-4.6-3.85-1.29 1.53 4.6 3.85L22 5.72zM12 4c-4.97 0-9 4.03-9 9s4.02 9 9 9c4.97 0 9-4.03 9-9s-4.03-9-9-9zm0 16c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/>
+                                <circle cx="12" cy="12" r="2.5"/>
+                            </svg>
+                        </div>
+                        <div class="mention-name">Outlook</div>
+                        <div class="mention-description">일정 관리</div>
+                    </div>
+                    <div class="mention-item" data-service="slack">
+                        <div class="mention-icon">
+                            <svg viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M6 15a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm0-6a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm6 0a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm6 0a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm-6 6a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm6 0a2 2 0 1 1 0-4 2 2 0 0 1 0 4z"/>
+                            </svg>
+                        </div>
+                        <div class="mention-name">Slack</div>
+                        <div class="mention-description">팀 메시징</div>
+                    </div>
+                    <div class="mention-item" data-service="notion">
+                        <div class="mention-icon">
+                            <svg viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.981-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466l1.823 1.447zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.841-.046.935-.56.935-1.167V6.354c0-.606-.233-.933-.748-.887l-15.177.887c-.56.047-.747.327-.747.933zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.748 0-.935-.234-1.495-.933l-4.577-7.186v6.952L12.21 19s0 .84-1.168.84l-3.222.186c-.093-.186 0-.653.327-.746l.84-.233V9.854L7.822 9.76c-.094-.42.14-1.026.793-1.073l3.456-.233 4.764 7.279v-6.44l-1.215-.139c-.093-.514.28-.887.747-.933l1.922-.233zm-2.428 2.428c-.28.28-.653.514-.933.514-.28 0-.467-.233-.187-.513l.187-.187c.28-.28.653-.514.933-.514.28 0 .467.233.187.513l-.187.187z"/>
+                            </svg>
+                        </div>
+                        <div class="mention-name">Notion</div>
+                        <div class="mention-description">노트 & 문서</div>
+                    </div>
+                    <div class="mention-item" data-service="trello">
+                        <div class="mention-icon">
+                            <svg viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M6 9v10.5a1.5 1.5 0 0 0 1.5 1.5h9a1.5 1.5 0 0 0 1.5-1.5V9H6zM7.5 3h9v3h-9V3z"/>
+                                <rect x="9" y="12" width="1.5" height="3"/>
+                                <rect x="13.5" y="12" width="1.5" height="3"/>
+                            </svg>
+                        </div>
+                        <div class="mention-name">Trello</div>
+                        <div class="mention-description">프로젝트 관리</div>
+                    </div>
+                </div>
             </div>
+            
+            <!-- 대화 모드 -->
+            <div class="chat-mode" id="chatMode" style="display: none;">
+                <!-- 채팅창 닫기 버튼 -->
+                <button class="close-chat-button" id="closeChatButton" title="채팅창 닫기">
+                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+                <div class="chat-area" id="chatArea">
+                    <!-- 대화 메시지들이 여기에 추가됩니다 -->
+                </div>
+                <!-- 대화창 하단 입력창 -->
+                <div class="chat-input-container" id="chatInputContainer" style="display: none;">
+                    <div class="chat-input-wrapper">
+                        <input type="text" class="chat-input" id="chatInput" placeholder="Ask more questions...">
+                        <button class="chat-submit-button" id="chatSubmitButton" title="전송">
+                            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M5 12h14"></path>
+                                <path d="m12 5 7 7-7 7"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
         </div>
     </div>
 
@@ -646,57 +1067,92 @@
     <script>
             const { ipcRenderer } = require('electron');
 
-            // 툴바 드래그 기능 - Electron 기본 드래그 사용, 세로축 제한
+            // 툴바 드래그 기능 - 정확한 영역 제한
             let isDragging = false;
+            let startX = 0;
             let startY = 0;
+            let windowX = 0;
+            let windowY = 0;
 
             // 툴바 드래그 시작 감지
             document.addEventListener('mousedown', (e) => {
-                // 툴바 영역에서만 드래그 허용 (버튼과 입력창 제외)
+                // 툴바 영역에서만 드래그 허용
                 const toolbar = e.target.closest('.toolbar');
                 const isButton = e.target.closest('button');
                 const isInput = e.target.closest('input');
+                const isChatArea = e.target.closest('.chat-area');
                 
-                if (toolbar && !isButton && !isInput) {
+                // 툴바 영역이면서 버튼이나 입력창이 아닌 경우에만 드래그
+                if (toolbar && !isButton && !isInput && !isChatArea) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
                     isDragging = true;
+                    startX = e.clientX;
                     startY = e.clientY;
+                    
+                    // 현재 윈도우 위치 가져오기
+                    ipcRenderer.send('get-toolbar-position');
                     
                     // 드래그 중 스타일 적용
                     toolbar.classList.add('dragging');
                     
-                    document.addEventListener('mousemove', handleMouseMove);
-                    document.addEventListener('mouseup', handleMouseUp);
+                    // 강한 그립 커서 적용
+                    document.body.style.cursor = 'grabbing';
+                    
+                    document.addEventListener('mousemove', handleMouseMove, { passive: false });
+                    document.addEventListener('mouseup', handleMouseUp, { passive: false });
                 }
             });
 
-            // 마우스 이동 처리 (세로축 제한)
+            // 초기 위치 설정
+            ipcRenderer.on('toolbar-position', (event, position) => {
+                windowX = position.x;
+                windowY = position.y;
+            });
+
+            // 마우스 이동 처리 (부드러운 드래그)
+            let lastMoveTime = 0;
+            const moveThrottle = 16; // 60fps (약 16ms)
+            
             function handleMouseMove(e) {
                 if (!isDragging) return;
                 
+                const currentTime = Date.now();
+                if (currentTime - lastMoveTime < moveThrottle) return;
+                lastMoveTime = currentTime;
+                
+                const deltaX = e.clientX - startX;
                 const deltaY = e.clientY - startY;
                 
-                // 세로축 이동이 감지되면 드래그 중단
-                if (Math.abs(deltaY) > 5) {
-                    isDragging = false;
-                    const toolbar = document.querySelector('.toolbar');
-                    if (toolbar) toolbar.classList.remove('dragging');
-                    
-                    // 윈도우 위치 복원
-                    ipcRenderer.send('restore-window-position');
-                    
-                    document.removeEventListener('mousemove', handleMouseMove);
-                    document.removeEventListener('mouseup', handleMouseUp);
-                }
+                // 화면 경계 계산
+                const newX = Math.max(0, Math.min(window.screen.width - 500, windowX + deltaX));
+                const newY = Math.max(0, Math.min(window.screen.height - 64, windowY + deltaY));
+                
+                // 부드러운 이동을 위해 requestAnimationFrame 사용
+                requestAnimationFrame(() => {
+                    ipcRenderer.send('move-toolbar-smooth', { newX: newX, newY: newY });
+                });
             }
 
             // 마우스 업 처리
-            function handleMouseUp() {
+            function handleMouseUp(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                stopDragging();
+            }
+
+            // 드래그 중단 함수
+            function stopDragging() {
                 if (isDragging) {
                     isDragging = false;
-                    
-                    // 드래그 중 스타일 제거
                     const toolbar = document.querySelector('.toolbar');
-                    if (toolbar) toolbar.classList.remove('dragging');
+                    if (toolbar) {
+                        toolbar.classList.remove('dragging');
+                    }
+                    
+                    // 커서 복원
+                    document.body.style.cursor = '';
                     
                     document.removeEventListener('mousemove', handleMouseMove);
                     document.removeEventListener('mouseup', handleMouseUp);
@@ -707,19 +1163,72 @@
             const micButton = document.getElementById('micButton');
             const speakShortcut = document.getElementById('speakShortcut');
             const askButton = document.getElementById('askButton');
-            const hideButton = document.getElementById('hideButton');
-            const settingsButton = document.getElementById('settingsButton');
             const toggleButton = document.getElementById('toggleButton');
-            const hiddenInputContainer = document.getElementById('hiddenInputContainer');
-            const hiddenInput = document.getElementById('hiddenInput');
-            const submitButton = document.getElementById('submitButton');
+            const unifiedChatContainer = document.getElementById('unifiedChatContainer');
+            const searchMode = document.getElementById('searchMode');
+            const chatMode = document.getElementById('chatMode');
+            const unifiedInput = document.getElementById('unifiedInput');
+            const unifiedSubmitButton = document.getElementById('unifiedSubmitButton');
+            const mentionDropdown = document.getElementById('mentionDropdown');
+            
+            // 대화창 하단 입력창 요소들
+            const chatInputContainer = document.getElementById('chatInputContainer');
+            const chatInput = document.getElementById('chatInput');
+            const chatSubmitButton = document.getElementById('chatSubmitButton');
+            
+            // DOM 요소 로드 확인
+            console.log('DOM 요소 확인:');
+            console.log('unifiedSubmitButton:', unifiedSubmitButton);
+            console.log('unifiedInput:', unifiedInput);
+            console.log('searchMode:', searchMode);
+            console.log('chatMode:', chatMode);
 
             const voiceWave = document.getElementById('voiceWave');
             const waveBars = voiceWave.querySelectorAll('.wave-bar');
             const chatArea = document.getElementById('chatArea');
             const chatContainer = document.getElementById('chatContainer');
+            const closeChatButton = document.getElementById('closeChatButton');
+            
+
+
 
             let isListening = false;
+
+            // 채팅창 닫기 버튼 이벤트
+            closeChatButton.addEventListener('click', () => {
+                unifiedChatContainer.classList.remove('show');
+                unifiedChatContainer.style.pointerEvents = 'none';
+                // 검색 모드로 돌아가기
+                searchMode.style.display = 'flex';
+                chatMode.style.display = 'none';
+                unifiedInput.value = '';
+            });
+
+            // 상태 업데이트 함수는 더 이상 필요하지 않음
+            
+            // 채팅창에 로딩 메시지 표시 함수
+            function showLoadingMessage(message) {
+                // 기존 로딩 메시지가 있으면 제거
+                if (window.currentLoadingMessage && window.currentLoadingMessage.parentNode) {
+                    window.currentLoadingMessage.remove();
+                }
+                
+                const loadingDiv = document.createElement('div');
+                loadingDiv.className = 'chat-message assistant-message loading-message';
+                loadingDiv.innerHTML = `
+                    <span class="loading-text">
+                        ${message}
+                        <span class="loading-dots">
+                            <span class="dot"></span>
+                            <span class="dot"></span>
+                            <span class="dot"></span>
+                        </span>
+                    </span>
+                `;
+                chatArea.appendChild(loadingDiv);
+                chatArea.scrollTop = chatArea.scrollHeight - chatArea.clientHeight;
+                window.currentLoadingMessage = loadingDiv;
+            }
 
             // 음성 인식 버튼 클릭
             micButton.addEventListener('click', () => {
@@ -731,104 +1240,424 @@
                 toggleVoiceRecognition();
             });
 
+
+
             // Ask 버튼 클릭 (토글 기능)
             askButton.addEventListener('click', () => {
                 console.log('Ask 버튼 클릭됨');
-                if (hiddenInputContainer.classList.contains('show')) {
-                    console.log('입력창 숨기기');
-                    // 위로 슬라이드 애니메이션 적용
-                    hiddenInputContainer.classList.add('hide');
-                    setTimeout(() => {
-                        hiddenInputContainer.classList.remove('show', 'hide');
-                        hiddenInput.value = '';
-                    }, 300); // 애니메이션 시간과 동일
+                
+                if (unifiedChatContainer) {
+                    if (unifiedChatContainer.classList.contains('show') && chatMode.style.display === 'block') {
+                        // 대화창이 열려있으면 하단 입력창만 토글
+                        const chatInputContainer = document.getElementById('chatInputContainer');
+                        if (chatInputContainer) {
+                            if (chatInputContainer.style.display === 'none' || chatInputContainer.style.display === '') {
+                                console.log('대화창 하단 입력창 표시');
+                                chatInputContainer.style.display = 'block';
+                                setTimeout(() => {
+                                    setupChatInputHandlers();
+                                }, 100);
+                                const chatInput = document.getElementById('chatInput');
+                                if (chatInput) {
+                                    setTimeout(() => {
+                                        chatInput.focus();
+                                    }, 100);
+                                }
+                            } else {
+                                console.log('대화창 하단 입력창 숨기기');
+                                chatInputContainer.style.display = 'none';
+                            }
+                        }
+                    } else {
+                        // 검색창이 열려있으면 닫기, 닫혀있으면 열기
+                        if (unifiedChatContainer.classList.contains('show')) {
+                            console.log('검색창 닫기');
+                            unifiedChatContainer.classList.remove('show');
+                            unifiedChatContainer.style.pointerEvents = 'none';
+                            unifiedInput.value = '';
+                            
+                            // 툴바 상태 복원
+                            document.body.style.height = '50px';
+                            unifiedChatContainer.style.top = '60px';
+                        } else {
+                            console.log('통합 대화창 표시하기');
+                            unifiedChatContainer.classList.add('show');
+                            adjustWindowSizeForInput();
+                            
+                            setTimeout(() => {
+                                if (unifiedInput) {
+                                    unifiedInput.focus();
+                                    console.log('입력창에 포커스 설정됨');
+                                }
+                                ipcRenderer.send('focus-window');
+                            }, 100);
+                        }
+                    }
+                }
+            });
+            
+            // Cmd+A 단축키 이벤트 리스너 추가
+            window.addEventListener('keydown', function(e) {
+                if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.stopImmediatePropagation();
+                    console.log('Cmd+A 단축키 실행');
+                    
+                    // Ask 버튼 클릭과 동일한 동작
+                    if (unifiedChatContainer) {
+                        if (unifiedChatContainer.classList.contains('show') && chatMode.style.display === 'block') {
+                            // 대화창이 열려있으면 하단 입력창만 토글
+                            const chatInputContainer = document.getElementById('chatInputContainer');
+                            if (chatInputContainer) {
+                                if (chatInputContainer.style.display === 'none' || chatInputContainer.style.display === '') {
+                                    console.log('대화창 하단 입력창 표시');
+                                    chatInputContainer.style.display = 'block';
+                                    setTimeout(() => {
+                                        setupChatInputHandlers();
+                                    }, 100);
+                                    const chatInput = document.getElementById('chatInput');
+                                    if (chatInput) {
+                                        setTimeout(() => {
+                                            chatInput.focus();
+                                        }, 100);
+                                    }
+                                } else {
+                                    console.log('대화창 하단 입력창 숨기기');
+                                    chatInputContainer.style.display = 'none';
+                                }
+                            }
+                        } else {
+                            // 검색창이 열려있으면 닫기, 닫혀있으면 열기
+                            if (unifiedChatContainer.classList.contains('show')) {
+                                console.log('검색창 닫기');
+                                unifiedChatContainer.classList.remove('show');
+                                unifiedChatContainer.style.pointerEvents = 'none';
+                                unifiedInput.value = '';
+                                
+                                // 툴바 상태 복원
+                                document.body.style.height = '50px';
+                                unifiedChatContainer.style.top = '60px';
+                            } else {
+                                console.log('통합 대화창 표시하기');
+                                unifiedChatContainer.classList.add('show');
+                                adjustWindowSizeForInput();
+                                
+                                setTimeout(() => {
+                                    if (unifiedInput) {
+                                        unifiedInput.focus();
+                                        console.log('입력창에 포커스 설정됨');
+                                    }
+                                    ipcRenderer.send('focus-window');
+                                }, 100);
+                            }
+                        }
+                    }
+                    
+                    return false;
+                }
+            }, true);
+            
+            // IPC로 Cmd+A 처리
+            ipcRenderer.on('cmd-a-pressed', () => {
+                console.log('IPC Cmd+A 실행');
+                
+                if (unifiedChatContainer) {
+                    if (unifiedChatContainer.classList.contains('show') && chatMode.style.display === 'block') {
+                        // 대화창이 열려있으면 하단 입력창만 토글
+                        const chatInputContainer = document.getElementById('chatInputContainer');
+                        if (chatInputContainer) {
+                            if (chatInputContainer.style.display === 'none' || chatInputContainer.style.display === '') {
+                                console.log('대화창 하단 입력창 표시');
+                                chatInputContainer.style.display = 'block';
+                                setTimeout(() => {
+                                    setupChatInputHandlers();
+                                }, 100);
+                                const chatInput = document.getElementById('chatInput');
+                                if (chatInput) {
+                                    setTimeout(() => {
+                                        chatInput.focus();
+                                    }, 100);
+                                }
+                            } else {
+                                console.log('대화창 하단 입력창 숨기기');
+                                chatInputContainer.style.display = 'none';
+                            }
+                        }
+                    } else {
+                        // 검색창이 열려있으면 닫기, 닫혀있으면 열기
+                        if (unifiedChatContainer.classList.contains('show')) {
+                            console.log('검색창 닫기');
+                            unifiedChatContainer.classList.remove('show');
+                            unifiedChatContainer.style.pointerEvents = 'none';
+                            unifiedInput.value = '';
+                            
+                            // 툴바 상태 복원
+                            document.body.style.height = '50px';
+                            unifiedChatContainer.style.top = '60px';
+                        } else {
+                            console.log('통합 대화창 표시하기');
+                            unifiedChatContainer.classList.add('show');
+                            adjustWindowSizeForInput();
+                            
+                            setTimeout(() => {
+                                if (unifiedInput) {
+                                    unifiedInput.focus();
+                                    console.log('입력창에 포커스 설정됨');
+                                }
+                                ipcRenderer.send('focus-window');
+                            }, 100);
+                        }
+                    }
+                }
+            });
+            
+
+
+            // @mention 자동완성 기능
+            let selectedMentionIndex = -1;
+            let mentionItems = [];
+
+            // 통합 입력창 입력 이벤트
+            unifiedInput.addEventListener('input', (e) => {
+                const value = e.target.value;
+                
+                // @가 입력되면 드롭다운 표시
+                if (value.includes('@')) {
+                    const atIndex = value.lastIndexOf('@');
+                    const afterAt = value.substring(atIndex + 1);
+                    
+                    // @ 뒤에 공백이 있으면 드롭다운 숨김 (서비스 선택 완료)
+                    if (afterAt.includes(' ')) {
+                        hideMentionDropdown();
+                        return;
+                    }
+                    
+                    // @ 뒤에 텍스트가 없거나 서비스명과 매칭되면 드롭다운 표시
+                    if (afterAt === '' || afterAt.length > 0) {
+                        showMentionDropdown();
+                        filterMentionItems(afterAt);
+                    } else {
+                        hideMentionDropdown();
+                    }
                 } else {
-                    console.log('입력창 표시하기');
-                    hiddenInputContainer.classList.add('show');
-                    setTimeout(() => {
-                        hiddenInput.focus();
-                        console.log('입력창에 포커스 설정됨');
-                        // 윈도우에 포커스 주기
-                        ipcRenderer.send('focus-window');
-                    }, 100);
+                    hideMentionDropdown();
                 }
             });
 
-            // 숨겨진 입력창 처리
-            hiddenInput.addEventListener('keypress', (e) => {
-                console.log('입력창 키프레스 이벤트:', e.key);
-                if (e.key === 'Enter' && hiddenInput.value.trim()) {
-                    executeCommand(hiddenInput.value.trim());
-                    hiddenInput.value = '';
-                    // 위로 슬라이드 애니메이션 적용
-                    hiddenInputContainer.classList.add('hide');
-                    setTimeout(() => {
-                        hiddenInputContainer.classList.remove('show', 'hide');
-                    }, 300);
+            // @mention 드롭다운 표시
+            function showMentionDropdown() {
+                mentionDropdown.style.display = 'block';
+                mentionDropdown.style.visibility = 'visible';
+                mentionDropdown.style.opacity = '1';
+                mentionItems = mentionDropdown.querySelectorAll('.mention-item');
+                selectedMentionIndex = -1;
+                updateMentionSelection();
+            }
+
+            // @mention 드롭다운 숨김
+            function hideMentionDropdown() {
+                mentionDropdown.style.display = 'none';
+                mentionDropdown.style.visibility = 'hidden';
+                mentionDropdown.style.opacity = '0';
+                selectedMentionIndex = -1;
+                
+                // 모든 선택 상태 제거
+                mentionItems.forEach((item) => {
+                    item.classList.remove('selected');
+                });
+            }
+
+            // @mention 아이템 필터링
+            function filterMentionItems(query) {
+                mentionItems.forEach((item, index) => {
+                    const serviceName = item.querySelector('.mention-name').textContent.toLowerCase();
+                    const serviceData = item.getAttribute('data-service').toLowerCase();
+                    
+                    if (query === '' || serviceName.includes(query.toLowerCase()) || serviceData.includes(query.toLowerCase())) {
+                        item.style.display = 'flex';
+                    } else {
+                        item.style.display = 'none';
+                    }
+                });
+            }
+
+            // @mention 선택 업데이트
+            function updateMentionSelection() {
+                mentionItems.forEach((item, index) => {
+                    if (index === selectedMentionIndex) {
+                        item.classList.add('selected');
+                    } else {
+                        item.classList.remove('selected');
+                    }
+                });
+            }
+
+            // @mention 아이템 클릭 이벤트 (초기화)
+            function initializeMentionItems() {
+                mentionItems = mentionDropdown.querySelectorAll('.mention-item');
+                mentionItems.forEach((item) => {
+                    item.addEventListener('click', () => {
+                        const service = item.getAttribute('data-service');
+                        insertMention(service);
+                    });
+                });
+            }
+
+            // 초기화 실행
+            initializeMentionItems();
+
+            // @mention 삽입
+            function insertMention(service) {
+                const value = unifiedInput.value;
+                const atIndex = value.lastIndexOf('@');
+                const beforeAt = value.substring(0, atIndex);
+                const afterAt = value.substring(atIndex + 1);
+                
+                // @ 뒤의 텍스트를 서비스명으로 교체
+                const newValue = beforeAt + '@' + service + ' ';
+                hiddenInput.value = newValue;
+                
+                // 드롭다운을 즉시 숨기고 포커스 설정
+                hideMentionDropdown();
+                hiddenInput.focus();
+                
+                // 커서를 끝으로 이동
+                hiddenInput.setSelectionRange(newValue.length, newValue.length);
+                
+                // 추가: 입력 이벤트를 다시 트리거하지 않도록 플래그 설정
+                setTimeout(() => {
+                    // 드롭다운이 완전히 숨겨졌는지 확인
+                    if (mentionDropdown.style.display === 'block') {
+                        mentionDropdown.style.display = 'none';
+                    }
+                }, 10);
+            }
+
+            // 키보드 네비게이션 (unifiedInput 사용)
+            unifiedInput.addEventListener('keydown', (e) => {
+                if (mentionDropdown.style.display === 'block') {
+                    if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        selectedMentionIndex = Math.min(selectedMentionIndex + 1, mentionItems.length - 1);
+                        updateMentionSelection();
+                    } else if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        selectedMentionIndex = Math.max(selectedMentionIndex - 1, -1);
+                        updateMentionSelection();
+                    } else if (e.key === 'Enter' && selectedMentionIndex >= 0) {
+                        e.preventDefault();
+                        const selectedItem = mentionItems[selectedMentionIndex];
+                        const service = selectedItem.getAttribute('data-service');
+                        insertMention(service);
+                    } else if (e.key === 'Escape') {
+                        hideMentionDropdown();
+                    }
                 }
             });
 
-            // 입력창 클릭 이벤트 추가
-            hiddenInput.addEventListener('click', (e) => {
-                console.log('입력창 클릭됨');
+            // 통합 입력창 처리
+            unifiedInput.addEventListener('keypress', (e) => {
+                console.log('통합 입력창 키프레스 이벤트:', e.key);
+                if (e.key === 'Enter' && unifiedInput.value.trim()) {
+                    // 드롭다운이 열려있으면 명령 실행하지 않음
+                    if (mentionDropdown.style.display === 'block') {
+                        return;
+                    }
+                    
+                    const userQuestion = unifiedInput.value.trim();
+                    
+                    // 검색 모드에서 대화 모드로 전환
+                    searchMode.style.display = 'none';
+                    chatMode.style.display = 'block';
+                    
+                    // 사용자 질문을 대화창에 추가
+                    addUserMessage(userQuestion);
+                    
+                    // 명령 실행
+                    executeCommand(userQuestion);
+                    
+                    // 입력창 초기화
+                    unifiedInput.value = '';
+                }
+            });
+
+            // 통합 입력창 클릭 이벤트 추가
+            unifiedInput.addEventListener('click', (e) => {
+                console.log('통합 입력창 클릭됨');
                 e.stopPropagation();
             });
 
-            hiddenInput.addEventListener('focus', () => {
-                console.log('입력창 포커스됨');
+            unifiedInput.addEventListener('focus', () => {
+                console.log('통합 입력창 포커스됨');
             });
 
-            hiddenInput.addEventListener('blur', () => {
-                console.log('입력창 포커스 해제됨');
+            unifiedInput.addEventListener('blur', () => {
+                console.log('통합 입력창 포커스 해제됨');
             });
 
             // Submit 버튼 클릭
-            submitButton.addEventListener('click', () => {
-                if (hiddenInput.value.trim()) {
-                    executeCommand(hiddenInput.value.trim());
-                    hiddenInput.value = '';
-                    // 위로 슬라이드 애니메이션 적용
-                    hiddenInputContainer.classList.add('hide');
+            unifiedSubmitButton.addEventListener('click', () => {
+                console.log('Submit 버튼 클릭됨!');
+                console.log('unifiedInput.value:', unifiedInput.value);
+                
+                if (unifiedInput.value.trim()) {
+                    const userQuestion = unifiedInput.value.trim();
+                    console.log('사용자 질문:', userQuestion);
+                    
+                    // 검색 모드에서 대화 모드로 전환
+                    searchMode.style.display = 'none';
+                    chatMode.style.display = 'block';
+                    console.log('대화 모드로 전환됨');
+                    
+                    // 대화창 높이 자동 조정
+                    adjustChatHeight();
+                    
+                    // 사용자 질문을 대화창에 추가
+                    addUserMessage(userQuestion);
+                    
+                    // 명령 실행
+                    executeCommand(userQuestion);
+                    
+                    // 입력창 초기화
+                    unifiedInput.value = '';
+                    
+                    // 대화창이 표시된 후 높이 재조정
                     setTimeout(() => {
-                        hiddenInputContainer.classList.remove('show', 'hide');
-                    }, 300);
+                        adjustChatHeight();
+                    }, 100);
+                } else {
+                    console.log('입력값이 비어있음');
                 }
             });
 
             // Cmd+A 단축키로 Ask 입력창 토글
             ipcRenderer.on('show-ask-input', () => {
-                if (hiddenInputContainer.classList.contains('show')) {
+                if (unifiedChatContainer.classList.contains('show')) {
                     // 위로 슬라이드 애니메이션 적용
-                    hiddenInputContainer.classList.add('hide');
+                    unifiedChatContainer.classList.add('hide');
                     setTimeout(() => {
-                        hiddenInputContainer.classList.remove('show', 'hide');
-                        hiddenInput.value = '';
+                        unifiedChatContainer.classList.remove('show', 'hide');
+                        unifiedInput.value = '';
+                        // 입력창이 숨겨지면 클릭 영역 비활성화
+                        unifiedChatContainer.style.pointerEvents = 'none';
                     }, 300); // 애니메이션 시간과 동일
                 } else {
-                    hiddenInputContainer.classList.add('show');
+                    unifiedChatContainer.classList.add('show');
+                    // 입력창이 표시되면 클릭 영역 활성화
+                    unifiedChatContainer.style.pointerEvents = 'auto';
                     setTimeout(() => {
-                        hiddenInput.focus();
+                        unifiedInput.focus();
                         // 윈도우에 포커스 주기
                         ipcRenderer.send('focus-window');
                     }, 100);
                 }
             });
 
-            // 툴바 숨기기
-            hideButton.addEventListener('click', () => {
-                ipcRenderer.send('close-toolbar');
-            });
-
-            // 설정 버튼
-            settingsButton.addEventListener('click', () => {
-                // 설정 창 열기 로직
-                console.log('설정 창 열기');
-            });
-
-            // 토글 버튼
+            // 햄버거 메뉴 버튼
             toggleButton.addEventListener('click', () => {
-                console.log('토글 버튼 클릭됨');
-                // 토글 기능 구현
+                console.log('햄버거 메뉴 버튼 클릭됨');
+                // 메뉴 기능 구현
             });
 
             // 툴바가 자동으로 나타나고 사라지므로 더블클릭 기능 제거
@@ -900,7 +1729,6 @@
             ipcRenderer.on('listening-start', () => {
                 isListening = true;
                 micButton.classList.add('active');
-                statusText.textContent = 'Listening...';
                 startVoiceWave();
             });
 
@@ -915,6 +1743,7 @@
             // 음성 명령 수신
             ipcRenderer.on('voice-command', (event, command) => {
                 addUserMessage(command);
+                showLoadingMessage('Thinking...');
             });
 
             ipcRenderer.on('voice-recognition-start', (event) => {
@@ -936,13 +1765,12 @@
                     window.currentLoadingMessage.textContent = command;
                     window.currentLoadingMessage = null;
                 }
+                showLoadingMessage('Thinking...');
+                
                 // 명령 실행 (중복 메시지 방지)
                 ipcRenderer.send('execute-command', command);
                 
-                // 로딩 메시지 추가 (약간의 지연으로 중복 방지)
-                setTimeout(() => {
-                    addLoadingMessage();
-                }, 100);
+
             });
 
             // 시뮬레이션용 음성 웨이브 (실제 음성 인식이 없을 때)
@@ -957,17 +1785,36 @@
 
             function executeCommand(command) {
                 console.log('명령 실행:', command);
-                // 첫 명령 실행 시 채팅 영역 표시
-                showChatArea();
-                addUserMessage(command);
+                
+                // 채팅창에 로딩 메시지 표시
+                showLoadingMessage('Thinking...');
+                
                 ipcRenderer.send('execute-command', command);
             }
 
-            function showChatArea() {
-                // 채팅 컨테이너가 처음 표시될 때만 실행
-                if (!chatContainer.classList.contains('show')) {
-                    chatContainer.classList.add('show');
+            // 통합 대화창에서는 showChatArea와 hideChatArea 함수가 필요 없음
+            // 대화 모드로 전환하는 것은 submit 버튼에서 처리
+
+            // 통합 대화창 표시/숨김 시 윈도우 크기 조정
+            function adjustWindowSizeForInput() {
+                const unifiedChatContainer = document.getElementById('unifiedChatContainer');
+                
+                let totalHeight = 64; // 기본 툴바 높이
+                let totalWidth = 800; // 툴바 고정 너비
+                
+                // 통합 대화창이 표시되어 있으면 높이만 추가
+                if (unifiedChatContainer.classList.contains('show')) {
+                    totalHeight += 600; // 통합 대화창 높이
                 }
+                
+                // body 너비는 항상 툴바 크기로 고정
+                document.body.style.width = totalWidth + 'px';
+                
+                // 윈도우 크기 조정 (너비는 항상 800px 고정)
+                ipcRenderer.send('resize-toolbar-window', { 
+                    height: totalHeight,
+                    width: totalWidth
+                });
             }
 
             function addUserMessage(message, isLoading = false) {
@@ -996,23 +1843,10 @@
                 messageDiv.textContent = finalMessage;
             }
             
-            // 로딩 메시지 추가
-            function addLoadingMessage() {
-                // 이미 로딩 메시지가 있으면 추가하지 않음
-                if (window.currentLoadingMessage && window.currentLoadingMessage.parentNode) {
-                    return;
-                }
-                
-                const loadingDiv = document.createElement('div');
-                loadingDiv.className = 'chat-message assistant-message loading-message';
-                loadingDiv.innerHTML = '<span class="loading-text">Reading...</span>';
-                chatArea.appendChild(loadingDiv);
-                chatArea.scrollTop = chatArea.scrollHeight - chatArea.clientHeight;
-                window.currentLoadingMessage = loadingDiv;
-            }
+
             
             // 타이핑 효과로 메시지 표시
-            function typeMessage(messageDiv, text, speed = 10) {
+            function typeMessage(messageDiv, text, speed = 3) {
                 let index = 0;
                 messageDiv.innerHTML = '';
                 
@@ -1036,11 +1870,155 @@
                         }
                         
                         chatArea.scrollTop = chatArea.scrollHeight - chatArea.clientHeight;
+                        // 실시간으로 높이 조정
+                        adjustChatHeight();
                         setTimeout(typeChar, speed);
+                    } else {
+                        // 타이핑 완료 후 bullet point 수정
+                        fixBulletPoints(messageDiv);
+                        // 복사 버튼 추가
+                        addCopyButton(messageDiv, text);
+                        // 높이 자동 조정
+                        setTimeout(adjustChatHeight, 50);
                     }
                 }
                 
                 typeChar();
+            }
+
+            // Bullet point를 가로 배치로 수정하는 함수
+            function fixBulletPoints(messageDiv) {
+                const lists = messageDiv.querySelectorAll('ul');
+                lists.forEach(ul => {
+                    // ul 스타일 수정
+                    ul.style.cssText = `
+                        list-style: none !important;
+                        padding-left: 0 !important;
+                        margin: 12px 0 12px 20px !important;
+                    `;
+                    
+                    const items = ul.querySelectorAll('li');
+                    items.forEach(li => {
+                        // 기존 내용을 span으로 감싸기
+                        const textContent = li.innerHTML;
+                        
+                        // li 스타일 완전히 재설정
+                        li.style.cssText = `
+                            display: flex !important;
+                            align-items: center !important;
+                            gap: 8px !important;
+                            margin: 6px 0 !important;
+                            font-size: 20px !important;
+                            font-family: 'Geist', sans-serif !important;
+                            color: #fff !important;
+                            line-height: 1.6 !important;
+                            list-style-type: none !important;
+                            padding: 0 !important;
+                        `;
+                        
+                        // 기존 내용 제거
+                        li.innerHTML = '';
+                        
+                        // bullet point 생성
+                        const bullet = document.createElement('span');
+                        bullet.className = 'custom-bullet';
+                        bullet.textContent = '•';
+                        bullet.style.cssText = `
+                            color: #58a6ff !important;
+                            font-weight: bold !important;
+                            font-size: 12px !important;
+                            line-height: 1.6 !important;
+                            flex-shrink: 0 !important;
+                            display: inline-block !important;
+                            margin-right: 8px !important;
+                        `;
+                        
+                        // 텍스트 컨테이너 생성
+                        const textContainer = document.createElement('span');
+                        textContainer.className = 'bullet-text';
+                        textContainer.innerHTML = textContent;
+                        textContainer.style.cssText = `
+                            display: inline-block !important;
+                            flex: 1 !important;
+                            vertical-align: middle !important;
+                        `;
+                        
+                        // 요소들을 li에 추가
+                        li.appendChild(bullet);
+                        li.appendChild(textContainer);
+                    });
+                });
+            }
+
+            // 복사 버튼 추가 함수
+            function addCopyButton(messageDiv, text) {
+                // React Icons 스타일의 복사 아이콘 SVG
+                const copyIcon = `
+                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                `;
+                
+                const copyButton = document.createElement('button');
+                copyButton.className = 'copy-button';
+                copyButton.innerHTML = copyIcon;
+                copyButton.title = '복사하기';
+                
+                copyButton.addEventListener('click', async () => {
+                    // HTML 태그 제거하고 순수 텍스트만 추출
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = text;
+                    const cleanText = tempDiv.textContent || tempDiv.innerText || '';
+                    
+                    try {
+                        await navigator.clipboard.writeText(cleanText);
+                        copyButton.classList.add('copied');
+                        copyButton.innerHTML = `
+                            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                        `;
+                        copyButton.title = '복사됨!';
+                        
+                        setTimeout(() => {
+                            copyButton.classList.remove('copied');
+                            copyButton.innerHTML = copyIcon;
+                            copyButton.title = '복사하기';
+                        }, 2000);
+                    } catch (err) {
+                        console.error('복사 실패:', err);
+                        // 폴백: 구식 방법
+                        const textArea = document.createElement('textarea');
+                        textArea.value = cleanText;
+                        document.body.appendChild(textArea);
+                        textArea.select();
+                        document.execCommand('copy');
+                        document.body.removeChild(textArea);
+                        
+                        copyButton.classList.add('copied');
+                        copyButton.innerHTML = `
+                            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                        `;
+                        copyButton.title = '복사됨!';
+                        
+                        setTimeout(() => {
+                            copyButton.classList.remove('copied');
+                            copyButton.innerHTML = copyIcon;
+                            copyButton.title = '복사하기';
+                        }, 2000);
+                    }
+                });
+                
+                messageDiv.appendChild(copyButton);
+            }
+
+            // 채팅 히스토리 초기화
+            function clearChatHistory() {
+                chatArea.innerHTML = '';
+                console.log('채팅 히스토리 초기화됨');
             }
 
 
@@ -1101,8 +2079,23 @@
 
             // 중복된 listening 이벤트 리스너 제거
 
+            // 채팅 히스토리 초기화 IPC 리스너
+            ipcRenderer.on('clear-chat-history', () => {
+                clearChatHistory();
+            });
+
+
+            
             // 초기 상태 설정
             speakShortcut.innerHTML = 'Speak <span class="cmd-symbol">⌘</span><span>+X</span>';
+            
+            // 초기 상태에서 대화창과 입력창 클릭 영역 비활성화
+            chatContainer.style.pointerEvents = 'none';
+            hiddenInputContainer.style.pointerEvents = 'none';
+            
+            // 툴바는 항상 위에 있지만 투명해서 다른 창 클릭 방해 안함
+            
+
             
             // 스크롤 디버깅을 위한 함수 추가
             function debugScroll() {
@@ -1121,12 +2114,254 @@
                 console.log('스크롤 수정 후 scrollTop:', chatArea.scrollTop);
             }
             
-            // 메시지 추가 후 디버깅
+            // 채팅창 높이 자동 조정 함수
+            function adjustChatHeight() {
+                const chatArea = document.getElementById('chatArea');
+                const chatContainer = document.getElementById('chatContainer');
+                
+                if (chatArea && chatContainer) {
+                    const contentHeight = chatArea.scrollHeight;
+                    const minHeight = 50;
+                    const maxHeight = 350;
+                    
+                    // 내용 높이에 맞춰 조정 (최소/최대 제한 적용)
+                    const newHeight = Math.max(minHeight, Math.min(contentHeight, maxHeight));
+                    chatArea.style.height = newHeight + 'px';
+                    
+                    // 채팅 컨테이너도 자동 조정
+                    const containerHeight = newHeight + 30; // 패딩 고려
+                    chatContainer.style.height = containerHeight + 'px';
+                }
+            }
+
+            // 메시지 추가 후 디버깅 및 높이 조정
             const originalAddUserMessage = addUserMessage;
             addUserMessage = function(message, isLoading = false) {
                 const result = originalAddUserMessage(message, isLoading);
-                setTimeout(debugScroll, 100);
+                setTimeout(() => {
+                    debugScroll();
+                    adjustChatHeight();
+                }, 100);
                 return result;
+            };
+            
+            // 대화창 하단 입력창 이벤트 핸들러 (간단한 버전)
+            function initializeChatInputHandlers() {
+                console.log('후속질문 검색창 이벤트 핸들러 등록 완료');
+                // 전역 이벤트 위임을 사용하므로 별도 등록 불필요
+            }
+            
+            // 후속질문 검색창 이벤트 핸들러 등록 함수
+            function setupChatInputHandlers() {
+                const chatInput = document.getElementById('chatInput');
+                const chatSubmitButton = document.getElementById('chatSubmitButton');
+                
+                console.log('후속질문 검색창 요소 확인:', {
+                    chatInput: chatInput,
+                    chatSubmitButton: chatSubmitButton
+                });
+                
+                if (chatInput && chatSubmitButton) {
+                    console.log('후속질문 검색창 이벤트 핸들러 등록 시작');
+                    
+                    // 기존 이벤트 리스너 제거 (중복 방지)
+                    chatInput.removeEventListener('keypress', handleChatInputKeypress);
+                    chatSubmitButton.removeEventListener('click', handleChatSubmitClick);
+                    chatSubmitButton.removeEventListener('mousedown', handleChatSubmitClick);
+                    
+                    // Enter 키 이벤트
+                    chatInput.addEventListener('keypress', handleChatInputKeypress);
+                    
+                    // Submit 버튼 클릭 이벤트
+                    chatSubmitButton.addEventListener('click', handleChatSubmitClick);
+                    chatSubmitButton.addEventListener('mousedown', handleChatSubmitClick);
+                    
+                    console.log('후속질문 검색창 이벤트 핸들러 등록 완료');
+                } else {
+                    console.log('후속질문 검색창 요소를 찾을 수 없음');
+                }
+            }
+            
+            // 후속질문 입력창 키프레스 핸들러
+            function handleChatInputKeypress(e) {
+                if (e.key === 'Enter' && e.target.value.trim()) {
+                    e.preventDefault();
+                    const userQuestion = e.target.value.trim();
+                    console.log('후속질문 입력창에서 질문:', userQuestion);
+                    
+                    // 사용자 질문을 대화창에 추가
+                    addUserMessage(userQuestion);
+                    
+                    // 명령 실행
+                    executeCommand(userQuestion);
+                    
+                    // 입력창 초기화
+                    e.target.value = '';
+                    
+                    // 대화창 높이 자동 조정
+                    setTimeout(() => {
+                        adjustChatHeight();
+                    }, 100);
+                }
+            }
+            
+            // 후속질문 Submit 버튼 핸들러
+            function handleChatSubmitClick(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const chatInput = document.getElementById('chatInput');
+                const userQuestion = chatInput.value.trim();
+                
+                if (userQuestion) {
+                    console.log('후속질문 Submit에서 질문:', userQuestion);
+                    
+                    // 사용자 질문을 대화창에 추가
+                    addUserMessage(userQuestion);
+                    
+                    // 명령 실행
+                    executeCommand(userQuestion);
+                    
+                    // 입력창 초기화
+                    chatInput.value = '';
+                    
+                    // 대화창 높이 자동 조정
+                    setTimeout(() => {
+                        adjustChatHeight();
+                    }, 100);
+                }
+            }
+            
+            // Enter 키 이벤트 핸들러
+            function chatInputKeypressHandler(e) {
+                console.log('대화창 입력창 키프레스:', e.key);
+                if (e.key === 'Enter' && e.target.value.trim()) {
+                    e.preventDefault();
+                    const userQuestion = e.target.value.trim();
+                    console.log('대화창 입력창에서 질문:', userQuestion);
+                    
+                    // 사용자 질문을 대화창에 추가
+                    addUserMessage(userQuestion);
+                    
+                    // 명령 실행
+                    executeCommand(userQuestion);
+                    
+                    // 입력창 초기화
+                    e.target.value = '';
+                    
+                    // 대화창 높이 자동 조정
+                    setTimeout(() => {
+                        adjustChatHeight();
+                    }, 100);
+                }
+            }
+            
+            // Submit 버튼 클릭 이벤트 핸들러
+            function chatSubmitClickHandler(e) {
+                console.log('대화창 Submit 버튼 클릭됨');
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const chatInput = document.getElementById('chatInput');
+                if (chatInput && chatInput.value.trim()) {
+                    const userQuestion = chatInput.value.trim();
+                    console.log('대화창 Submit에서 질문:', userQuestion);
+                    
+                    // 사용자 질문을 대화창에 추가
+                    addUserMessage(userQuestion);
+                    
+                    // 명령 실행
+                    executeCommand(userQuestion);
+                    
+                    // 입력창 초기화
+                    chatInput.value = '';
+                    
+                    // 대화창 높이 자동 조정
+                    setTimeout(() => {
+                        adjustChatHeight();
+                    }, 100);
+                } else {
+                    console.log('대화창 입력값이 비어있음');
+                }
+            }
+            
+            // 전역 이벤트 위임으로 후속질문 검색창 처리
+            document.addEventListener('click', (e) => {
+                if (e.target && e.target.id === 'chatSubmitButton') {
+                    console.log('전역 이벤트로 대화창 Submit 버튼 클릭됨');
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    const chatInput = document.getElementById('chatInput');
+                    if (chatInput && chatInput.value.trim()) {
+                        const userQuestion = chatInput.value.trim();
+                        console.log('전역 이벤트로 대화창 Submit에서 질문:', userQuestion);
+                        
+                        // 사용자 질문을 대화창에 추가
+                        addUserMessage(userQuestion);
+                        
+                        // 명령 실행
+                        executeCommand(userQuestion);
+                        
+                        // 입력창 초기화
+                        chatInput.value = '';
+                        
+                        // 대화창 높이 자동 조정
+                        setTimeout(() => {
+                            adjustChatHeight();
+                        }, 100);
+                    }
+                }
+            });
+            
+            document.addEventListener('keypress', (e) => {
+                if (e.target && e.target.id === 'chatInput' && e.key === 'Enter') {
+                    console.log('전역 이벤트로 대화창 입력창 Enter 키');
+                    e.preventDefault();
+                    
+                    const userQuestion = e.target.value.trim();
+                    if (userQuestion) {
+                        console.log('전역 이벤트로 대화창 입력창에서 질문:', userQuestion);
+                        
+                        // 사용자 질문을 대화창에 추가
+                        addUserMessage(userQuestion);
+                        
+                        // 명령 실행
+                        executeCommand(userQuestion);
+                        
+                        // 입력창 초기화
+                        e.target.value = '';
+                        
+                        // 대화창 높이 자동 조정
+                        setTimeout(() => {
+                            adjustChatHeight();
+                        }, 100);
+                    }
+                }
+            });
+            
+            // 초기화 실행
+            setTimeout(initializeChatInputHandlers, 1000);
+            
+            // 대화창이 표시될 때마다 이벤트 핸들러 재등록
+            const originalShowChatInput = () => {
+                const chatInputContainer = document.getElementById('chatInputContainer');
+                if (chatInputContainer) {
+                    if (chatInputContainer.style.display === 'none' || chatInputContainer.style.display === '') {
+                        console.log('대화창 하단 입력창 표시');
+                        chatInputContainer.style.display = 'block';
+                        setTimeout(initializeChatInputHandlers, 100); // 입력창이 표시된 후 이벤트 핸들러 등록
+                        const chatInput = document.getElementById('chatInput');
+                        if (chatInput) {
+                            setTimeout(() => {
+                                chatInput.focus();
+                            }, 100);
+                        }
+                    } else {
+                        console.log('대화창 하단 입력창 숨기기');
+                        chatInputContainer.style.display = 'none';
+                    }
+                }
             };
         </script>
     </body>

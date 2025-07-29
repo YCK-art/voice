@@ -455,6 +455,12 @@ class CursorAgent {
     return this.commandHistory;
   }
 
+  // 명령 히스토리 초기화
+  clearCommandHistory() {
+    this.commandHistory = [];
+    console.log('명령 히스토리 초기화됨');
+  }
+
   // 시뮬레이션 액션 실행
   async simulateAction(analysis) {
     console.log('시뮬레이션 액션 실행:', analysis);

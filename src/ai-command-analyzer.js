@@ -2,17 +2,10 @@ const OpenAI = require('openai');
 
 class AICommandAnalyzer {
   constructor() {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (apiKey && apiKey !== 'your-openai-api-key-here') {
-      this.openai = new OpenAI({
-        apiKey: apiKey
-      });
-      this.isAvailable = true;
-      console.log('ChatGPT API 사용 가능');
-    } else {
-      this.isAvailable = false;
-      console.log('ChatGPT API 키가 설정되지 않음 - 기본 분석기 사용');
-    }
+    this.openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY
+    });
+    this.isAvailable = !!process.env.OPENAI_API_KEY;
   }
 
   async analyzeCommand(userCommand, detectedLanguage = 'ko') {
@@ -33,7 +26,21 @@ class AICommandAnalyzer {
     try {
       // 언어에 따른 시스템 프롬프트 설정
       const systemPrompts = {
-        ko: `당신은 사용자의 자연어 명령을 분석하여 컴퓨터 제어 액션으로 변환하는 AI 어시스턴트입니다.
+        ko: `You are Guidant, an intelligent desktop assistant that executes tasks, interprets on-screen content, and writes like a professional.
+
+Your core capabilities include:
+1. **Action execution**: When the user asks to open an app (e.g. KakaoTalk, Notion, Outlook), or schedule a meeting in Outlook, you must translate their intent into clear, executable actions. Use concise instructions for UI interaction or app control.
+2. **Professional writing**: When the user requests emails, documents, or explanations, respond with precise, well-structured, and context-aware writing. Match the tone to the task (e.g. formal for emails, informative for reports).
+3. **On-screen interpretation**: When the user refers to what they're seeing (e.g. websites, videos, documents), provide accurate summaries, analyses, or translations based on visible content. Respond with clarity and expertise.
+
+Formatting guidelines:
+- Use structured output: clear titles, bullet points, numbered lists, or tables as appropriate.
+- Keep your tone intelligent, efficient, and helpful—like a smart operating system assistant.
+- Prioritise **doing** over explaining when a task is requested.
+
+You operate as a context-aware assistant. If you're unsure, ask clarifying questions. But when the intent is clear, act immediately.
+
+당신은 사용자의 자연어 명령을 분석하여 컴퓨터 제어 액션으로 변환하는 AI 어시스턴트입니다.
 
 사용 가능한 액션 타입:
 1. open: 앱/웹사이트 열기
@@ -47,6 +54,12 @@ class AICommandAnalyzer {
 9. file: 파일 관리
 10. system: 시스템 설정
 11. tab-analysis: 현재 브라우저 탭 분석
+12. outlook-calendar: Outlook 일정 추가/관리
+13. slack: Slack 메시지 전송
+14. notion: Notion 페이지 관리
+15. trello: Trello 카드 관리
+
+**중요: 반드시 JSON 형식으로만 응답하세요!**
 
 응답 형식 (JSON):
 {
@@ -61,6 +74,13 @@ class AICommandAnalyzer {
   "confidence": 0.95,
   "explanation": "분석 설명"
 }
+
+**규칙:**
+1. 반드시 JSON 형식으로만 응답
+2. 일반적인 질문은 "ai-search" 액션으로 처리
+3. 설명이나 자연어 응답 금지
+4. JSON 파싱 가능한 형식만 사용
+5. 코드 블록 사용 금지 - 순수 JSON만 반환
 
 예시:
 - "구글에서 나이아가라 폭포 검색해줘" → {"action": "search", "target": "Google", "parameters": {"query": "나이아가라 폭포"}}
@@ -86,9 +106,37 @@ class AICommandAnalyzer {
 - "카메라 버튼 눌러줘" → {"action": "click", "target": "camera"}
 - "사진 찍기 버튼 클릭해줘" → {"action": "click", "target": "camera"}
 - "전화 걸어줘" → {"action": "call", "target": "전화"}
-- "설정 열어줘" → {"action": "open", "target": "시스템 설정"}`,
+- "설정 열어줘" → {"action": "open", "target": "시스템 설정"}
+- "김철수에게 안녕하세요 메시지 보내줘" → {"action": "message", "target": "김철수", "parameters": {"text": "안녕하세요", "platform": "kakao"}}
+- "카카오톡으로 영희에게 만나서 반가웠어 메시지 보내줘" → {"action": "message", "target": "영희", "parameters": {"text": "만나서 반가웠어", "platform": "kakao"}}
+- "친구에게 오늘 날씨 좋네요 메시지 보내줘" → {"action": "message", "target": "친구", "parameters": {"text": "오늘 날씨 좋네요", "platform": "kakao"}}
+- "엄마에게 안녕하세요 메시지 보내줘" → {"action": "message", "target": "엄마", "parameters": {"text": "안녕하세요", "platform": "kakao"}}
+- "아빠한테 오늘 날씨 좋네요 메시지 보내줘" → {"action": "message", "target": "아빠", "parameters": {"text": "오늘 날씨 좋네요", "platform": "kakao"}}
+
+@mention 방식 예시:
+- "@outlook 2025년 7월 28일 오후 2시~2시반까지 회의 잡아줘" → {"action": "outlook-calendar", "target": "outlook", "parameters": {"date": "2025년 7월 28일", "startTime": "오후 2시", "endTime": "오후 2시반", "title": "회의"}}
+- "@outlook 내일 오전 10시부터 11시까지 팀 미팅 예약해줘" → {"action": "outlook-calendar", "target": "outlook", "parameters": {"date": "내일", "startTime": "오전 10시", "endTime": "오전 11시", "title": "팀 미팅"}}
+- "@outlook 오늘 오후 3시부터 4시까지 클라이언트 미팅" → {"action": "outlook-calendar", "target": "outlook", "parameters": {"date": "오늘", "startTime": "오후 3시", "endTime": "오후 4시", "title": "클라이언트 미팅"}}
+- "@outlook 7월 30일 오후 2시~3시까지 프로젝트 리뷰" → {"action": "outlook-calendar", "target": "outlook", "parameters": {"date": "2025년 7월 30일", "startTime": "오후 2시", "endTime": "오후 3시", "title": "프로젝트 리뷰"}}
+- "@slack #general 채널에 안녕하세요 메시지 보내줘" → {"action": "slack", "target": "slack", "parameters": {"channel": "general", "text": "안녕하세요"}}
+- "@notion 오늘 회의록 페이지 만들어줘" → {"action": "notion", "target": "notion", "parameters": {"action": "create_page", "title": "오늘 회의록"}}
+- "@trello 프로젝트 보드에 새 카드 추가해줘" → {"action": "trello", "target": "trello", "parameters": {"action": "create_card", "title": "새 카드"}}`,
         
-        en: `You are an AI assistant that analyzes user's natural language commands and converts them into computer control actions.
+        en: `You are Guidant, an intelligent desktop assistant that executes tasks, interprets on-screen content, and writes like a professional.
+
+Your core capabilities include:
+1. **Action execution**: When the user asks to open an app (e.g. KakaoTalk, Notion, Outlook), or schedule a meeting in Outlook, you must translate their intent into clear, executable actions. Use concise instructions for UI interaction or app control.
+2. **Professional writing**: When the user requests emails, documents, or explanations, respond with precise, well-structured, and context-aware writing. Match the tone to the task (e.g. formal for emails, informative for reports).
+3. **On-screen interpretation**: When the user refers to what they're seeing (e.g. websites, videos, documents), provide accurate summaries, analyses, or translations based on visible content. Respond with clarity and expertise.
+
+Formatting guidelines:
+- Use structured output: clear titles, bullet points, numbered lists, or tables as appropriate.
+- Keep your tone intelligent, efficient, and helpful—like a smart operating system assistant.
+- Prioritise **doing** over explaining when a task is requested.
+
+You operate as a context-aware assistant. If you're unsure, ask clarifying questions. But when the intent is clear, act immediately.
+
+You are an AI assistant that analyzes user's natural language commands and converts them into computer control actions.
 
 Available action types:
 1. open: open app/website
@@ -102,6 +150,12 @@ Available action types:
 9. file: file management
 10. system: system settings
 11. tab-analysis: analyze current browser tabs
+12. outlook-calendar: Outlook calendar management
+13. slack: Slack message sending
+14. notion: Notion page management
+15. trello: Trello card management
+
+**IMPORTANT: You MUST respond ONLY in JSON format!**
 
 Response format (JSON):
 {
@@ -116,6 +170,13 @@ Response format (JSON):
   "confidence": 0.95,
   "explanation": "analysis_explanation"
 }
+
+**Rules:**
+1. Respond ONLY in JSON format
+2. General questions should use "ai-search" action
+3. No explanations or natural language responses
+4. Use only JSON-parseable format
+5. NO code blocks - return pure JSON only
 
 Examples:
 - "search for Niagara Falls on Google" → {"action": "search", "target": "Google", "parameters": {"query": "Niagara Falls"}}
@@ -140,167 +201,68 @@ Examples:
 - "click the camera button" → {"action": "click", "target": "camera"}
 - "take a photo" → {"action": "click", "target": "camera"}
 - "make a phone call" → {"action": "call", "target": "phone"}
-- "open settings" → {"action": "open", "target": "system settings"}`,
-        
-        zh: `你是一个AI助手，分析用户的自然语言命令并将其转换为计算机控制操作。
+- "open settings" → {"action": "open", "target": "system settings"}
+- "send a message to John saying hello" → {"action": "message", "target": "John", "parameters": {"text": "hello", "platform": "kakao"}}
+- "message Sarah about the weather" → {"action": "message", "target": "Sarah", "parameters": {"text": "about the weather", "platform": "kakao"}}
 
-可用操作类型：
-1. open: 打开应用/网站
-2. search: 网络搜索
-3. ai-search: 通过ChatGPT API直接回答
-4. click: 点击UI元素
-5. type: 文本输入
-6. scroll: 页面滚动
-7. call: 拨打电话
-8. message: 发送消息
-9. file: 文件管理
-10. system: 系统设置
-11. tab-analysis: 分析当前浏览器标签页
-
-响应格式 (JSON):
-{
-  "action": "操作类型",
-  "target": "目标",
-  "parameters": {
-    "query": "搜索查询",
-    "text": "要输入的文本",
-    "direction": "滚动方向",
-    "amount": "滚动量"
-  },
-  "confidence": 0.95,
-  "explanation": "分析说明"
-}`,
-        
-        ja: `あなたは、ユーザーの自然言語コマンドを分析してコンピューター制御アクションに変換するAIアシスタントです。
-
-利用可能なアクションタイプ：
-1. open: アプリ/ウェブサイトを開く
-2. search: ウェブ検索
-3. ai-search: ChatGPT APIによる直接回答
-4. click: UI要素をクリック
-5. type: テキスト入力
-6. scroll: ページスクロール
-7. call: 電話をかける
-8. message: メッセージを送信
-9. file: ファイル管理
-10. system: システム設定
-11. tab-analysis: 現在のブラウザタブを分析
-
-応答形式 (JSON):
-{
-  "action": "アクションタイプ",
-  "target": "ターゲット",
-  "parameters": {
-    "query": "検索クエリ",
-    "text": "入力するテキスト",
-    "direction": "スクロール方向",
-    "amount": "スクロール量"
-  },
-  "confidence": 0.95,
-  "explanation": "分析説明"
-}`,
-        
-        es: `Eres un asistente de IA que analiza los comandos de lenguaje natural del usuario y los convierte en acciones de control informático.
-
-Tipos de acción disponibles:
-1. open: abrir aplicación/sitio web
-2. search: búsqueda web
-3. ai-search: respuesta directa a través de la API de ChatGPT
-4. click: hacer clic en elemento UI
-5. type: entrada de texto
-6. scroll: desplazamiento de página
-7. call: hacer llamada telefónica
-8. message: enviar mensaje
-9. file: gestión de archivos
-10. system: configuración del sistema
-11. tab-analysis: analizar pestañas actuales del navegador
-
-Formato de respuesta (JSON):
-{
-  "action": "tipo_de_acción",
-  "target": "objetivo",
-  "parameters": {
-    "query": "consulta_de_búsqueda",
-    "text": "texto_a_introducir",
-    "direction": "dirección_de_desplazamiento",
-    "amount": "cantidad_de_desplazamiento"
-  },
-  "confidence": 0.95,
-  "explanation": "explicación_del_análisis"
-}`,
-        
-        fr: `Vous êtes un assistant IA qui analyse les commandes en langage naturel de l'utilisateur et les convertit en actions de contrôle informatique.
-
-Types d'action disponibles :
-1. open : ouvrir application/site web
-2. search : recherche web
-3. ai-search : réponse directe via l'API ChatGPT
-4. click : cliquer sur un élément UI
-5. type : saisie de texte
-6. scroll : défilement de page
-7. call : passer un appel téléphonique
-8. message : envoyer un message
-9. file : gestion de fichiers
-10. system : paramètres système
-11. tab-analysis : analyser les onglets actuels du navigateur
-
-Format de réponse (JSON) :
-{
-  "action": "type_d_action",
-  "target": "cible",
-  "parameters": {
-    "query": "requête_de_recherche",
-    "text": "texte_à_saisir",
-    "direction": "direction_de_défilement",
-    "amount": "quantité_de_défilement"
-  },
-  "confidence": 0.95,
-  "explanation": "explication_de_l_analyse"
-}`,
-        
-        de: `Sie sind ein KI-Assistent, der die natürlichen Sprachbefehle des Benutzers analysiert und in Computersteuerungsaktionen umwandelt.
-
-Verfügbare Aktionstypen:
-1. open: App/Website öffnen
-2. search: Websuche
-3. ai-search: Direkte Antwort über ChatGPT API
-4. click: UI-Element anklicken
-5. type: Texteingabe
-6. scroll: Seiten-Scroll
-7. call: Telefonanruf tätigen
-8. message: Nachricht senden
-9. file: Dateiverwaltung
-10. system: Systemeinstellungen
-11. tab-analysis: Aktuelle Browser-Tabs analysieren
-
-Antwortformat (JSON):
-{
-  "action": "aktionstyp",
-  "target": "ziel",
-  "parameters": {
-    "query": "suchanfrage",
-    "text": "einzugebender_text",
-    "direction": "scrollrichtung",
-    "amount": "scrollmenge"
-  },
-  "confidence": 0.95,
-  "explanation": "analyseerklärung"
-}`
+@mention examples:
+- "@outlook schedule a meeting for July 28th, 2025 from 2:00 PM to 2:30 PM" → {"action": "outlook-calendar", "target": "outlook", "parameters": {"date": "July 28, 2025", "startTime": "2:00 PM", "endTime": "2:30 PM", "title": "meeting"}}
+- "@outlook book a team meeting tomorrow from 10 AM to 11 AM" → {"action": "outlook-calendar", "target": "outlook", "parameters": {"date": "tomorrow", "startTime": "10 AM", "endTime": "11 AM", "title": "team meeting"}}
+- "@outlook schedule client meeting today from 3 PM to 4 PM" → {"action": "outlook-calendar", "target": "outlook", "parameters": {"date": "today", "startTime": "3 PM", "endTime": "4 PM", "title": "client meeting"}}
+- "@outlook book project review for July 30th from 2 PM to 3 PM" → {"action": "outlook-calendar", "target": "outlook", "parameters": {"date": "July 30, 2025", "startTime": "2 PM", "endTime": "3 PM", "title": "project review"}}
+- "@slack send hello message to #general channel" → {"action": "slack", "target": "slack", "parameters": {"channel": "general", "text": "hello"}}
+- "@notion create a meeting notes page for today" → {"action": "notion", "target": "notion", "parameters": {"action": "create_page", "title": "meeting notes for today"}}
+- "@trello add a new card to the project board" → {"action": "trello", "target": "trello", "parameters": {"action": "create_card", "title": "new card"}}`
       };
 
       const systemPrompt = systemPrompts[detectedLanguage] || systemPrompts.ko;
 
       const response = await this.openai.chat.completions.create({
-        model: "gpt-3.5-turbo",
+        model: "gpt-4o",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: improvedCommand }
         ],
-        temperature: 0.05, // 0.1 → 0.05로 변경 (더 빠른 응답)
-        max_tokens: 150 // 200 → 150으로 단축 (속도 향상)
+        temperature: 0.01,
+        max_tokens: 150
       });
 
-      const analysis = JSON.parse(response.choices[0].message.content);
+      let responseContent = response.choices[0].message.content.trim();
+      
+      // 코드 블록 제거 (```json ... ```)
+      if (responseContent.startsWith('```json')) {
+        responseContent = responseContent.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+      } else if (responseContent.startsWith('```')) {
+        responseContent = responseContent.replace(/^```\s*/, '').replace(/\s*```$/, '');
+      }
+      
+      // JSON 응답이 아닌 경우 처리
+      if (!responseContent.startsWith('{')) {
+        console.log('GPT가 JSON이 아닌 응답을 반환했습니다:', responseContent);
+        
+        // 일반적인 질문인지 확인
+        const questionKeywords = ['what', 'how', 'why', 'when', 'where', 'tell me', 'explain', 'describe', '뭐', '어떻게', '왜', '언제', '어디', '알려줘', '설명', '이해'];
+        const isQuestion = questionKeywords.some(keyword => 
+          responseContent.toLowerCase().includes(keyword.toLowerCase())
+        );
+        
+        if (isQuestion) {
+          // 질문인 경우 ai-search로 처리
+          return {
+            action: 'ai-search',
+            target: 'ai',
+            parameters: { query: userCommand },
+            confidence: 0.9,
+            explanation: '일반적인 질문으로 인식하여 AI 검색으로 처리',
+            originalCommand: userCommand
+          };
+        } else {
+          // 다른 경우 폴백 분석 사용
+          return this.fallbackAnalysis(userCommand);
+        }
+      }
+      
+      const analysis = JSON.parse(responseContent);
       // 원본 명령 추가
       analysis.originalCommand = userCommand;
       return analysis;
@@ -391,65 +353,39 @@ Antwortformat (JSON):
         return {
           action: 'search',
           target: 'Google',
-          parameters: { query },
+          parameters: { query: query },
           confidence: 0.8,
           explanation: `"${query}" 검색`
         };
       }
     }
     
-    // 열기 관련 명령어
-    if (lowerCommand.includes('열어') || lowerCommand.includes('open')) {
-      // 열기 대상 추출
-      let target = command;
-      target = target.replace(/열어|open|해줘|해주세요|please/gi, '').trim();
-      
-      if (target) {
-        return {
-          action: 'open',
-          target: target,
-          parameters: {},
-          confidence: 0.7,
-          explanation: `${target} 열기`
-        };
-      }
-    }
+    // 일반적인 질문인 경우
+    const questionKeywords = ['what', 'how', 'why', 'when', 'where', 'tell me', 'explain', 'describe', '뭐', '어떻게', '왜', '언제', '어디', '알려줘', '설명', '이해'];
+    const isQuestion = questionKeywords.some(keyword => 
+      lowerCommand.includes(keyword.toLowerCase())
+    );
     
-    // 전화 관련 명령어
-    if (lowerCommand.includes('전화') || lowerCommand.includes('call') || 
-        lowerCommand.includes('phone')) {
+    if (isQuestion) {
       return {
-        action: 'call',
-        target: '전화',
-        parameters: {},
-        confidence: 0.8,
-        explanation: '전화 앱 열기'
+        action: 'ai-search',
+        target: 'ai',
+        parameters: { query: command },
+        confidence: 0.7,
+        explanation: '일반적인 질문으로 인식'
       };
     }
     
-    // 메시지 관련 명령어
-    if (lowerCommand.includes('메시지') || lowerCommand.includes('message') || 
-        lowerCommand.includes('문자')) {
-      return {
-        action: 'message',
-        target: '메시지',
-        parameters: {},
-        confidence: 0.8,
-        explanation: '메시지 앱 열기'
-      };
-    }
-    
+    // 기본값
     return {
       action: 'unknown',
       target: null,
       parameters: {},
       confidence: 0.1,
-      explanation: '알 수 없는 명령',
-      originalCommand: command
+      explanation: '알 수 없는 명령'
     };
   }
 
-  // 음성 인식 후처리 - 일반적인 오인식 수정
   correctSpeechRecognition(command) {
     let corrected = command;
     
@@ -504,14 +440,27 @@ Antwortformat (JSON):
     return corrected;
   }
 
-  // ChatGPT로 음성 인식 결과 재검증 및 개선
   async improveSpeechRecognition(command) {
     if (!this.isAvailable) {
       return command; // API가 없으면 원본 반환
     }
 
     try {
-      const systemPrompt = `당신은 음성 인식 결과를 개선하는 전문가입니다.
+      const systemPrompt = `You are Guidant, an intelligent desktop assistant that executes tasks, interprets on-screen content, and writes like a professional.
+
+Your core capabilities include:
+1. **Action execution**: When the user asks to open an app (e.g. KakaoTalk, Notion, Outlook), or schedule a meeting in Outlook, you must translate their intent into clear, executable actions. Use concise instructions for UI interaction or app control.
+2. **Professional writing**: When the user requests emails, documents, or explanations, respond with precise, well-structured, and context-aware writing. Match the tone to the task (e.g. formal for emails, informative for reports).
+3. **On-screen interpretation**: When the user refers to what they're seeing (e.g. websites, videos, documents), provide accurate summaries, analyses, or translations based on visible content. Respond with clarity and expertise.
+
+Formatting guidelines:
+- Use structured output: clear titles, bullet points, numbered lists, or tables as appropriate.
+- Keep your tone intelligent, efficient, and helpful—like a smart operating system assistant.
+- Prioritise **doing** over explaining when a task is requested.
+
+You operate as a context-aware assistant. If you're unsure, ask clarifying questions. But when the intent is clear, act immediately.
+
+당신은 음성 인식 결과를 개선하는 전문가입니다.
 사용자가 실제로 말하려고 했던 내용을 추측하여 정확한 문장으로 수정해주세요.
 
 주요 개선 사항:
@@ -531,7 +480,7 @@ Antwortformat (JSON):
 원본 음성 인식 결과만 수정하고, 명령의 의도는 유지해주세요.`;
 
       const response = await this.openai.chat.completions.create({
-        model: "gpt-3.5-turbo",
+        model: "gpt-4o",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: `음성 인식 결과: "${command}"` }

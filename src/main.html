@@ -360,6 +360,18 @@
             }
         }
 
+        // 히스토리 초기화
+        function clearHistory() {
+            historyList.innerHTML = `
+                <div class="history-item">
+                    <div class="history-command">대화 내용 초기화됨</div>
+                    <div class="history-result">모든 대화 내용이 삭제되었습니다.</div>
+                    <div class="history-time">방금 전</div>
+                </div>
+            `;
+            console.log('메인 윈도우 히스토리 초기화됨');
+        }
+
 
 
         // IPC 이벤트 리스너
@@ -377,6 +389,11 @@
             } else {
                 addHistoryItem(data.command, `오류: ${data.error}`, false);
             }
+        });
+
+        // 히스토리 초기화 IPC 리스너
+        ipcRenderer.on('clear-history', () => {
+            clearHistory();
         });
 
                 

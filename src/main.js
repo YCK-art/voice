@@ -57,9 +57,9 @@ class VoiceCursorAssistant {
     const primaryDisplay = screen.getPrimaryDisplay();
     const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
     
-    // 툴바 크기 (CSS에서 설정된 크기와 일치)
-    const toolbarWidth = 800;
-    const toolbarHeight = 240;
+    // 툴바 크기 (검색창 길이에 맞춰 고정)
+    const toolbarWidth = 800; // 검색창 길이에 맞춰 고정
+    const toolbarHeight = 64; // 실제 툴바 높이만큼만 설정
     
     // 화면 중앙 위쪽에 위치하도록 계산 (고정 위치)
     const x = Math.round((screenWidth - toolbarWidth) / 2);
@@ -67,17 +67,16 @@ class VoiceCursorAssistant {
     
     this.toolbarWindow = new BrowserWindow({
       width: toolbarWidth,
-      minHeight: toolbarHeight,
-      maxHeight: 600,
+      height: toolbarHeight, // 고정 높이로 정확히 제한
       x: x,
       y: y,
       frame: false,
       transparent: true,
-      alwaysOnTop: true, // 기본적으로 항상 위에 표시
+      alwaysOnTop: true,
       resizable: false,
       skipTaskbar: true,
       hasShadow: false,
-      focusable: true, // 포커스를 받을 수 있도록 설정
+      focusable: true,
       movable: true, // 기본 드래그 활성화
       webPreferences: {
         nodeIntegration: true,
@@ -85,8 +84,14 @@ class VoiceCursorAssistant {
         enableRemoteModule: true,
         webSecurity: false,
         allowRunningInsecureContent: true
-      }
+      },
+      // 하드웨어 가속 활성화로 더 스무스한 이동
+      enableLargerThanScreen: false,
+      thickFrame: false
     });
+
+    // 개발자 도구 비활성화
+    // this.toolbarWindow.webContents.openDevTools();
 
     this.toolbarWindow.loadFile(path.join(__dirname, 'toolbar.html'));
     
@@ -97,8 +102,19 @@ class VoiceCursorAssistant {
         this.toolbarWindow = null;
       }
     });
+    
+    // 툴바는 항상 위에 있음
+    
+    // 툴바 크기 조정 IPC 핸들러
+    ipcMain.on('resize-toolbar', (event, height) => {
+      if (this.toolbarWindow && !this.toolbarWindow.isDestroyed()) {
+        this.toolbarWindow.setSize(1000, height); // 검색창/대화창 너비에 맞춤
+      }
+    });
 
-    // 툴바를 기본적으로 계속 표시
+
+
+    // 툴바를 기본적으로 계속 표시 (항상 위에 있음)
     this.toolbarWindow.show();
     this.toolbarWindow.setAlwaysOnTop(true);
   }
@@ -236,11 +252,48 @@ class VoiceCursorAssistant {
     globalShortcut.register('Cmd+A', () => {
       console.log('Cmd+A 단축키 실행됨');
       if (this.toolbarWindow && !this.toolbarWindow.isDestroyed()) {
-        this.toolbarWindow.webContents.send('show-ask-input');
+        this.toolbarWindow.webContents.send('cmd-a-pressed');
       } else {
         console.log('툴바 윈도우가 없어서 Ask 기능을 실행할 수 없습니다');
       }
     });
+
+    // Cmd+D로 대화 내용 초기화
+    globalShortcut.register('Cmd+D', () => {
+      console.log('Cmd+D 단축키 실행됨 - 대화 내용 초기화');
+      this.clearAllConversationHistory();
+    });
+  }
+
+  // 모든 대화 내용 초기화
+  clearAllConversationHistory() {
+    console.log('모든 대화 내용 초기화 시작...');
+    
+    // 1. 고급 액션 실행기의 대화 메모리 초기화
+    if (this.actionExecutor) {
+      this.actionExecutor.clearConversationMemory();
+      console.log('고급 액션 실행기 대화 메모리 초기화 완료');
+    }
+    
+    // 2. Cursor Agent의 명령 히스토리 초기화
+    if (this.cursorAgent) {
+      this.cursorAgent.clearCommandHistory();
+      console.log('Cursor Agent 명령 히스토리 초기화 완료');
+    }
+    
+    // 3. 툴바 윈도우의 채팅 영역 초기화
+    if (this.toolbarWindow && !this.toolbarWindow.isDestroyed()) {
+      this.toolbarWindow.webContents.send('clear-chat-history');
+      console.log('툴바 채팅 영역 초기화 요청 완료');
+    }
+    
+    // 4. 메인 윈도우의 히스토리 초기화
+    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+      this.mainWindow.webContents.send('clear-history');
+      console.log('메인 윈도우 히스토리 초기화 요청 완료');
+    }
+    
+    console.log('모든 대화 내용 초기화 완료');
   }
 
   setupIPC() {
@@ -288,6 +341,110 @@ class VoiceCursorAssistant {
       }
     });
 
+    // 툴바 위치 가져오기
+    ipcMain.on('get-toolbar-position', (event) => {
+      if (this.toolbarWindow && !this.toolbarWindow.isDestroyed()) {
+        const [x, y] = this.toolbarWindow.getPosition();
+        event.reply('toolbar-position', { x, y });
+      }
+    });
+
+    // 툴바 부드러운 이동 처리 (떨림 방지)
+    let lastMoveTime = 0;
+    const moveThrottle = 16; // 60fps
+    
+    ipcMain.on('move-toolbar-smooth', (event, data) => {
+      if (this.toolbarWindow && !this.toolbarWindow.isDestroyed()) {
+        const currentTime = Date.now();
+        if (currentTime - lastMoveTime < moveThrottle) return;
+        lastMoveTime = currentTime;
+        
+        const { screen } = require('electron');
+        const primaryDisplay = screen.getPrimaryDisplay();
+        const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+        
+        // 화면 경계 제한
+        const toolbarWidth = 500;
+        const toolbarHeight = 64;
+        const minX = 0;
+        const maxX = screenWidth - toolbarWidth;
+        const minY = 0;
+        const maxY = screenHeight - toolbarHeight;
+        
+        let newX = Math.max(minX, Math.min(maxX, Math.round(data.newX)));
+        let newY = Math.max(minY, Math.min(maxY, Math.round(data.newY)));
+        
+        // 부드러운 이동을 위해 setTimeout 사용 (Node.js 환경)
+        setTimeout(() => {
+          this.toolbarWindow.setPosition(newX, newY);
+        }, 0);
+      }
+    });
+
+    // 툴바 윈도우 크기 조정 - 툴바는 항상 고정 크기 유지
+    ipcMain.on('resize-toolbar-window', (event, data) => {
+      if (this.toolbarWindow && !this.toolbarWindow.isDestroyed()) {
+        const height = data.height || 64; // 기본 높이
+        const width = data.width || 800; // 툴바 고정 너비
+        this.toolbarWindow.setSize(width, height);
+      }
+    });
+
+    // 기존 호환성을 위한 핸들러
+    ipcMain.on('move-toolbar-final', (event, data) => {
+      if (this.toolbarWindow && !this.toolbarWindow.isDestroyed()) {
+        const { screen } = require('electron');
+        const primaryDisplay = screen.getPrimaryDisplay();
+        const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+        
+        const toolbarWidth = 500;
+        const toolbarHeight = 70; // 실제 툴바 높이
+        const minX = 0;
+        const maxX = screenWidth - toolbarWidth;
+        const minY = 0;
+        const maxY = screenHeight - toolbarHeight;
+        
+        let newX = Math.max(minX, Math.min(maxX, data.newX));
+        let newY = Math.max(minY, Math.min(maxY, data.newY));
+        
+        this.toolbarWindow.setPosition(newX, newY);
+      }
+    });
+
+    // 기존 호환성을 위한 핸들러
+    ipcMain.on('move-toolbar-simple', (event, data) => {
+      if (this.toolbarWindow && !this.toolbarWindow.isDestroyed()) {
+        const { screen } = require('electron');
+        const primaryDisplay = screen.getPrimaryDisplay();
+        const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+        
+        let newX = Math.max(minX, Math.min(maxX, data.newX));
+        const fixedY = Math.round(screenHeight * 0.05);
+        
+        this.toolbarWindow.setPosition(newX, fixedY);
+      }
+    });
+
+    // 기존 호환성을 위한 핸들러
+    ipcMain.on('move-toolbar-horizontal', (event, data) => {
+      if (this.toolbarWindow && !this.toolbarWindow.isDestroyed()) {
+        const [currentX, currentY] = this.toolbarWindow.getPosition();
+        const { screen } = require('electron');
+        const primaryDisplay = screen.getPrimaryDisplay();
+        const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+        
+        let newX = currentX + data.deltaX;
+        const toolbarWidth = 500;
+        const minX = 0;
+        const maxX = screenWidth - toolbarWidth;
+        
+        newX = Math.max(minX, Math.min(maxX, newX));
+        const fixedY = Math.round(screenHeight * 0.05);
+        
+        this.toolbarWindow.setPosition(Math.round(newX), fixedY);
+      }
+    });
+
     // 윈도우 위치 복원 (세로축 제한 시)
     ipcMain.on('restore-window-position', () => {
       if (this.toolbarWindow && !this.toolbarWindow.isDestroyed()) {
@@ -300,6 +457,11 @@ class VoiceCursorAssistant {
         // 세로축만 고정 위치로 복원
         this.toolbarWindow.setPosition(x, fixedY);
       }
+    });
+
+    // 대화 내용 초기화 요청
+    ipcMain.on('clear-conversation-history', () => {
+      this.clearAllConversationHistory();
     });
 
 
